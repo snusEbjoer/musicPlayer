@@ -139,23 +139,29 @@ func (c *C) saveTokens(data []byte) error {
 }
 func (c *C) RequestWithAuth(req *http.Request) (*http.Response, error) {
 	client := http.Client{}
-	tokens := c.ParseTokens()
+	tokens, err := c.ParseTokens()
+	if err != nil {
+		return nil, err
+	}
 	expires, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", tokens.Expires)
 	if err != nil {
-		log.Print(err)
+		return nil, err
 	}
 	if time.Now().After(expires) {
 		c.RefreshToken()
-		tokens = c.ParseTokens()
+		tokens, err = c.ParseTokens()
+		if err != nil {
+			return nil, err
+		}
 	}
 	req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Print(err)
+		return nil, err
 	}
 	return resp, err
 }
-func (c *C) FetchToken() {
+func (c *C) FetchToken() error {
 	r := bufio.NewReader(os.Stdin)
 	creds := c.ClientCred()
 	ctx := c.ClientContext()
