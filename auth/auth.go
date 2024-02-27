@@ -131,7 +131,7 @@ func (c *C) saveTokens(data []byte) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile("token.json", file, 622)
+	err = os.WriteFile("token.json", file, 0644)
 	if err != nil {
 		return err
 	}
