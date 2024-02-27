@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -38,9 +37,9 @@ type ClientContx struct {
 	Client Context `json:"client"`
 }
 type Context struct {
-	ClientName    string `json:"clientName"`
-	ClientVersion string `json:"clientVersion"`
-	// AndroidSdkVersion int    `json:"androidSdkVersion"`
+	ClientName        string `json:"clientName"`
+	ClientVersion     string `json:"clientVersion"`
+	AndroidSdkVersion int    `json:"androidSdkVersion"`
 }
 type FetchData struct {
 	Scope    string `json:"scope"`
@@ -79,28 +78,38 @@ type RefreshTokenPayload struct {
 }
 
 func (c *C) ClientContext() ClientCtx {
-	ctx := ClientCtx{Context: ClientContx{Client: Context{ClientName: "WEB", ClientVersion: "2.20200720.00.02"}}, Header: UserAgent{UserAgent: "Mozilla/5.0"}, Key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"}
-	return ctx
+	return ClientCtx{
+		Context: ClientContx{
+			Client: Context{
+				ClientName:    "WEB",
+				ClientVersion: "2.20200720.00.02"},
+		},
+		Header: UserAgent{
+			UserAgent: "Mozilla/5.0",
+		},
+		Key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
+	}
 }
 
 func (c *C) ClientCred() ClientCredentials {
-	cred := ClientCredentials{ClientId: "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com", ClientSecret: "SboVhoG9s0rNafixCSGGKXAT"}
-	return cred
+	return ClientCredentials{
+		ClientId:     "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com",
+		ClientSecret: "SboVhoG9s0rNafixCSGGKXAT",
+	}
 }
-func (c *C) ParseTokens() Tokens {
+func (c *C) ParseTokens() (Tokens, error) {
 	jsonFile, err := os.Open("token.json")
 	if err != nil {
-		fmt.Println("File not found")
-		return Tokens{}
+		return Tokens{}, err
 	}
 	defer jsonFile.Close()
 	var fileData Tokens
 	byteValue, err := io.ReadAll(jsonFile)
 	if err != nil {
-		log.Fatal(err)
+		return Tokens{}, err
 	}
 	json.Unmarshal(byteValue, &fileData)
-	return fileData
+	return fileData, nil
 }
 func calcExpirationTime(expiresIn int) string {
 	seconds := expiresIn % 60
@@ -109,17 +118,24 @@ func calcExpirationTime(expiresIn int) string {
 	expires := time.Now().Local().Add(time.Second*time.Duration(seconds) + time.Minute*time.Duration(minutes) + time.Hour*time.Duration(hours))
 	return expires.String()
 }
-func (c *C) saveTokens(data []byte) {
+func (c *C) saveTokens(data []byte) error {
 	var tokenDat TokenResponse
 	json.Unmarshal(data, &tokenDat)
-	file, err := json.MarshalIndent(Tokens{AccessToken: tokenDat.AccessToken, Expires: calcExpirationTime(tokenDat.ExpiresIn), RefreshToken: tokenDat.RefreshToken}, "", " ")
+	file, err := json.Marshal(
+		Tokens{
+			AccessToken:  tokenDat.AccessToken,
+			Expires:      calcExpirationTime(tokenDat.ExpiresIn),
+			RefreshToken: tokenDat.RefreshToken,
+		},
+	)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	err = os.WriteFile("token.json", file, 0644)
+	err = os.WriteFile("token.json", file, 622)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
 func (c *C) RequestWithAuth(req *http.Request) (*http.Response, error) {
 	client := http.Client{}
@@ -146,23 +162,23 @@ func (c *C) FetchToken() {
 	data := FetchData{Scope: "https://www.googleapis.com/auth/youtube", ClientId: creds.ClientId}
 	m, err := json.Marshal(data)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	client := http.Client{}
 	req, err := http.NewRequest("POST", "https://oauth2.googleapis.com/device/code", bytes.NewBuffer(m))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	req.Header.Add("User-Agent", ctx.Header.UserAgent)
 	req.Header.Add("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	body, err := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	var dat RespData
 	json.Unmarshal(body, &dat)
@@ -171,45 +187,50 @@ func (c *C) FetchToken() {
 	r.ReadString('\n')
 	tokenData, err := json.Marshal(TokenData{ClientId: creds.ClientId, ClientSecret: creds.ClientSecret, DeviceCode: dat.DeviceCode, GrantType: "urn:ietf:params:oauth:grant-type:device_code"})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	reqToken, err := http.NewRequest("POST", "https://oauth2.googleapis.com/token", bytes.NewBuffer(tokenData))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	reqToken.Header.Add("Content-Type", "application/json")
 	respToken, err := client.Do(reqToken)
+	defer respToken.Body.Close()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	bodyToken, err := io.ReadAll(respToken.Body)
-	respToken.Body.Close()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	c.saveTokens(bodyToken)
+	err = c.saveTokens(bodyToken)
+	if err != nil {
+		return err
+	}
+	return nil
 }
-func (c *C) RefreshToken() {
+func (c *C) RefreshToken() error {
 	creds := c.ClientCred()
-	tokens := c.ParseTokens()
+	tokens, err := c.ParseTokens()
 	data, err := json.Marshal(RefreshTokenPayload{ClientId: creds.ClientId, ClientSecret: creds.ClientSecret, RefreshToken: tokens.RefreshToken})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	client := http.Client{}
 	req, err := http.NewRequest("POST", "https://oauth2.googleapis.com/token", bytes.NewBuffer(data))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	req.Header.Add("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	bodyToken, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	resp.Body.Close()
 	c.saveTokens(bodyToken)
+	return nil
 }
