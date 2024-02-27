@@ -107,7 +107,7 @@ func calcExpirationTime(expiresIn int) string {
 	minutes := expiresIn % 3600 / 60
 	hours := math.Floor(float64(expiresIn / 3600))
 	expires := time.Now().Local().Add(time.Second*time.Duration(seconds) + time.Minute*time.Duration(minutes) + time.Hour*time.Duration(hours))
-	return expires.GoString()
+	return expires.String()
 }
 func (c *C) saveTokens(data []byte) {
 	var tokenDat TokenResponse
@@ -120,6 +120,24 @@ func (c *C) saveTokens(data []byte) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+func (c *C) RequestWithAuth(req *http.Request) (*http.Response, error) {
+	client := http.Client{}
+	tokens := c.ParseTokens()
+	expires, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", tokens.Expires)
+	if err != nil {
+		log.Print(err)
+	}
+	if time.Now().After(expires) {
+		c.RefreshToken()
+		tokens = c.ParseTokens()
+	}
+	req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Print(err)
+	}
+	return resp, err
 }
 func (c *C) FetchToken() {
 	r := bufio.NewReader(os.Stdin)

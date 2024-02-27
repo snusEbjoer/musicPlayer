@@ -27,7 +27,6 @@ type BaseParams struct {
 func (c *C) Search(query string) {
 	client := auth.C{}
 	ctx := client.ClientContext()
-	httpclient := http.Client{}
 	context, err := json.Marshal(map[string]any{"context": ctx.Context})
 	accessToken := client.ParseTokens().AccessToken
 	if err != nil {
@@ -44,15 +43,13 @@ func (c *C) Search(query string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println(v)
 	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		log.Fatal(err)
 	}
-	resp, err := httpclient.Do(req)
+	resp, err := client.RequestWithAuth(req)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

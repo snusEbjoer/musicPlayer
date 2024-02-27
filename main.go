@@ -11,6 +11,7 @@ func main() {
 	// ctx := client.ClientContext()
 	youtube := youtube.C{}
 	youtube.Search("квинка")
+	// client.FetchToken()
 	// context, err := json.Marshal(ctx.Context)
 	// if err != nil {
 	// 	log.Fatal(err)
