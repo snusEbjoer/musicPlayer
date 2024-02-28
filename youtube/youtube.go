@@ -8,6 +8,7 @@ import (
 	"main/auth"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/itchyny/gojq"
 )
@@ -73,6 +74,49 @@ func (c C) mapSearchResponseToSearchResult(jsonResponse []byte) ([]SearchResult,
 	}
 
 	return searchResults, nil
+}
+func (c *C) Download(url string) error {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	client := http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	os.WriteFile("asdsda.webm", respBody, 0644)
+	return nil
+}
+func (c *C) DownloadVideo(videoId string) ([]SearchResult, error) {
+	client := auth.C{}
+	context := client.ClientContext()
+	ctx := client.ClientDownloadContext(videoId)
+	body, err := json.Marshal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	v := url.Values{}
+	v.Add("key", context.Key)
+	req, err := http.NewRequest("POST", "https://youtubei.googleapis.com/youtubei/v1/player?", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	req.URL.RawQuery = v.Encode()
+	resp, err := client.RequestWithAuth(req)
+	if err != nil {
+		return nil, err
+	}
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(string(respBody))
+	return []SearchResult{}, nil
 }
 
 // Returns result list

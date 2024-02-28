@@ -32,14 +32,19 @@ type ClientCtx struct {
 	Context ClientContx `json:"context"`
 	Header  UserAgent   `json:"header"`
 	Key     string      `json:"key"`
+	VideoId string      `json:"videoId"`
 }
 type ClientContx struct {
 	Client Context `json:"client"`
 }
 type Context struct {
-	ClientName        string `json:"clientName"`
-	ClientVersion     string `json:"clientVersion"`
-	AndroidSdkVersion int    `json:"androidSdkVersion"`
+	ClientName     string         `json:"clientName"`
+	ClientVersion  string         `json:"clientVersion"`
+	Hl             string         `json:"hl"`
+	MainAppWebInfo MainAppWebInfo `json:"mainAppWebInfo"`
+}
+type MainAppWebInfo struct {
+	GraftUrl string `json:"graftUrl"`
 }
 type FetchData struct {
 	Scope    string `json:"scope"`
@@ -75,6 +80,23 @@ type RefreshTokenPayload struct {
 	ClientSecret string `json:"client_secret"`
 	GrantType    string `json:"grant_type"`
 	RefreshToken string `json:"refresh_token"`
+}
+
+func (c *C) ClientDownloadContext(videoId string) ClientCtx {
+	return ClientCtx{
+		Context: ClientContx{
+			Client: Context{
+				ClientName:     "WEB",
+				ClientVersion:  "2.20200720.00.02",
+				Hl:             "en",
+				MainAppWebInfo: MainAppWebInfo{GraftUrl: "/watch?v=" + videoId},
+			},
+		},
+		Header: UserAgent{
+			UserAgent: "Mozilla/5.0",
+		},
+		VideoId: videoId,
+	}
 }
 
 func (c *C) ClientContext() ClientCtx {
