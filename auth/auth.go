@@ -38,10 +38,12 @@ type ClientContx struct {
 	Client Context `json:"client"`
 }
 type Context struct {
-	ClientName     string         `json:"clientName"`
-	ClientVersion  string         `json:"clientVersion"`
-	Hl             string         `json:"hl"`
-	MainAppWebInfo MainAppWebInfo `json:"mainAppWebInfo"`
+	ClientName        string         `json:"clientName"`
+	ClientVersion     string         `json:"clientVersion"`
+	MainAppWebInfo    MainAppWebInfo `json:"mainAppWebInfo"`
+	ClientScreen      string         `json:"clientScreen"`
+	AndroidSdkVersion int            `json:"androidSdkVersion"`
+	Hl                string         `json:"hl"`
 }
 type MainAppWebInfo struct {
 	GraftUrl string `json:"graftUrl"`
@@ -86,14 +88,16 @@ func (c *C) ClientDownloadContext(videoId string) ClientCtx {
 	return ClientCtx{
 		Context: ClientContx{
 			Client: Context{
-				ClientName:     "WEB",
-				ClientVersion:  "2.20200720.00.02",
-				Hl:             "en",
-				MainAppWebInfo: MainAppWebInfo{GraftUrl: "/watch?v=" + videoId},
+				ClientName:        "ANDROID_CREATOR",
+				ClientVersion:     "22.30.100",
+				ClientScreen:      "EMBED",
+				AndroidSdkVersion: 30,
+				MainAppWebInfo:    MainAppWebInfo{GraftUrl: "/watch?v=" + videoId},
+				Hl:                "en",
 			},
 		},
 		Header: UserAgent{
-			UserAgent: "Mozilla/5.0",
+			UserAgent: "com.google.android.youtube/",
 		},
 		VideoId: videoId,
 	}
@@ -104,7 +108,10 @@ func (c *C) ClientContext() ClientCtx {
 		Context: ClientContx{
 			Client: Context{
 				ClientName:    "WEB",
-				ClientVersion: "2.20200720.00.02"},
+				ClientVersion: "2.20200720.00.02",
+				ClientScreen:  "EMBED",
+				Hl:            "en",
+			},
 		},
 		Header: UserAgent{
 			UserAgent: "Mozilla/5.0",
@@ -240,7 +247,7 @@ func (c *C) FetchToken() error {
 func (c *C) RefreshToken() error {
 	creds := c.ClientCred()
 	tokens, err := c.ParseTokens()
-	data, err := json.Marshal(RefreshTokenPayload{ClientId: creds.ClientId, ClientSecret: creds.ClientSecret, RefreshToken: tokens.RefreshToken})
+	data, err := json.Marshal(RefreshTokenPayload{ClientId: creds.ClientId, ClientSecret: creds.ClientSecret, RefreshToken: tokens.RefreshToken, GrantType: "refresh_token"})
 	if err != nil {
 		return err
 	}
@@ -259,6 +266,7 @@ func (c *C) RefreshToken() error {
 		return err
 	}
 	resp.Body.Close()
+	fmt.Println(string(bodyToken))
 	c.saveTokens(bodyToken)
 	return nil
 }

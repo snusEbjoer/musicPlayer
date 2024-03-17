@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 
 	"github.com/itchyny/gojq"
 )
@@ -27,8 +28,12 @@ type BaseParams struct {
 }
 
 type SearchResult struct {
-	Title    string
-	VideoUrl string
+	Title   string
+	VideoId string
+}
+type DownloadUrl struct {
+	Title       string
+	DownloadUrl string
 }
 
 func (c C) mapSearchResponseToSearchResult(jsonResponse []byte) ([]SearchResult, error) {
@@ -38,7 +43,7 @@ func (c C) mapSearchResponseToSearchResult(jsonResponse []byte) ([]SearchResult,
 		| map(select(.videoRenderer).videoRenderer) 
 		| map(pick(.videoId,.title.runs[0])) 
 		| map(setpath(["title"]; .title.runs[0].text)) 
-		| map(setpath(["videoId"]; "https://youtube.com/watch?v=" + .videoId))`)
+		| map(setpath(["videoId"]; .videoId))`)
 	if err != nil {
 		return nil, err
 	}
@@ -68,15 +73,15 @@ func (c C) mapSearchResponseToSearchResult(jsonResponse []byte) ([]SearchResult,
 		title := v["title"].(string)
 		videoId := v["videoId"].(string)
 		searchResults = append(searchResults, SearchResult{
-			Title:    title,
-			VideoUrl: videoId,
+			Title:   title,
+			VideoId: videoId,
 		})
 	}
 
 	return searchResults, nil
 }
-func (c *C) Download(url string) error {
-	req, err := http.NewRequest("GET", url, nil)
+func (c *C) Download(dl_url string, title string, playlistPath string) error {
+	req, err := http.NewRequest("GET", dl_url, nil)
 	if err != nil {
 		return err
 	}
@@ -85,38 +90,69 @@ func (c *C) Download(url string) error {
 	if err != nil {
 		return err
 	}
-	respBody, err := io.ReadAll(resp.Body)
+	f, _ := os.Create(fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, "sample"))
+	defer resp.Body.Close()
+	defer f.Close()
+	_, err = io.Copy(f, resp.Body)
 	if err != nil {
 		return err
 	}
-	os.WriteFile("asdsda.webm", respBody, 0644)
+	cmd := exec.Command("ffmpeg", "-i", fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, "sample"), "-map", "0:a", "-c", "copy", fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, title))
+	//cmd.Stdout = os.Stdout
+	//cmd.Stderr = os.Stderr
+	cmd.Run()
+	defer os.Remove(fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, "sample"))
+
 	return nil
 }
-func (c *C) DownloadVideo(videoId string) ([]SearchResult, error) {
+
+func (c *C) DownloadVideo(sr SearchResult) (DownloadUrl, error) {
 	client := auth.C{}
 	context := client.ClientContext()
-	ctx := client.ClientDownloadContext(videoId)
+	querry, err := gojq.Parse(`.streamingData.formats[0].url`)
+	if err != nil {
+		return DownloadUrl{}, err
+	}
+	ctx := client.ClientDownloadContext(sr.VideoId)
 	body, err := json.Marshal(ctx)
 	if err != nil {
-		return nil, err
+		return DownloadUrl{}, err
 	}
 	v := url.Values{}
 	v.Add("key", context.Key)
+	//v.Add("html5", "1")
+	//v.Add("eurl", "https://youtube.googleapis.com/v/"+sr.VideoId)
+	//v.Add("c", "TVHTML5")
+	//v.Add("contentCheckOk", "true")
+	//v.Add("racyCheckOk", "true")
+	// v.Add("cver", "6.20180913")
+	//v.Add("videoId", sr.VideoId)
+
 	req, err := http.NewRequest("POST", "https://youtubei.googleapis.com/youtubei/v1/player?", bytes.NewBuffer(body))
 	if err != nil {
-		return nil, err
+		return DownloadUrl{}, err
 	}
 	req.URL.RawQuery = v.Encode()
 	resp, err := client.RequestWithAuth(req)
+
 	if err != nil {
-		return nil, err
+		return DownloadUrl{}, err
 	}
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return DownloadUrl{}, err
 	}
-	fmt.Println(string(respBody))
-	return []SearchResult{}, nil
+	var respData map[string]any
+	json.Unmarshal(respBody, &respData)
+	results, ok := querry.Run(respData).Next()
+	if !ok {
+		fmt.Errorf("can't parse response JSON into SearchResults")
+	}
+	resultsList, ok := results.(string)
+	if !ok {
+		fmt.Errorf("can't parse response JSON into SearchResults")
+	}
+	return DownloadUrl{DownloadUrl: resultsList, Title: sr.Title}, nil
 }
 
 // Returns result list
@@ -127,7 +163,6 @@ func (c *C) Search(query string) ([]SearchResult, error) {
 	if err != nil {
 		return nil, nil
 	}
-	tokens, err := client.ParseTokens()
 	if err != nil {
 		return nil, nil
 	}
@@ -138,7 +173,6 @@ func (c *C) Search(query string) ([]SearchResult, error) {
 
 	// TODO: MB move to separate function
 	// Something like `prepareSearchRequest`
-	req.Header.Add("Authorization", "Bearer "+tokens.AccessToken)
 	v := url.Values{}
 	v.Add("key", ctx.Key)
 	v.Add("contentCheckOk", "true")
