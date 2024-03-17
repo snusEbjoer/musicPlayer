@@ -21,38 +21,42 @@ type Model struct {
 	mode            Modes
 	choosePlaylist  ChoosePlaylist.Model
 	currentPlaylist string
-	//createPlaylist
+	focused         bool
+	styles          lipgloss.Style
 }
-
-var baseStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240"))
 
 func (m Model) Init() tea.Cmd { return nil }
 
-func (m Model) Focus() {
+func (m *Model) Focus() {
 	m.table.Focus()
 }
-func (m Model) Blur() {
+
+func (m *Model) SetFocused(b bool) {
+	m.focused = b
+}
+
+func (m *Model) Blur() {
 	m.table.Blur()
 }
-func (m Model) Focused() bool {
+func (m *Model) Focused() bool {
 
 	return m.table.Focused()
 }
-func (m Model) DefaultPlaylist() Model {
+func DefaultPlaylist() Model {
 	columns := []table.Column{{Title: "Playlists", Width: 20}}
 	rows := []table.Row{{"Create playlist"}, {"Choose playlist"}}
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithFocused(true),
-		table.WithWidth(20),
-
 		table.WithHeight(4),
 	)
 
 	s := table.DefaultStyles()
+
+	defaultStyles := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240"))
 
 	s.Header = s.Header.
 		BorderStyle(lipgloss.NormalBorder()).
@@ -64,8 +68,16 @@ func (m Model) DefaultPlaylist() Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	choosePlaylist := m.choosePlaylist.DefaultPlaylist()
-	return Model{table: t, defaultRows: rows, mode: DEFAULT, choosePlaylist: choosePlaylist, currentPlaylist: ""}
+	choosePlaylist := ChoosePlaylist.DefaultPlaylist()
+	return Model{
+		table:           t,
+		defaultRows:     rows,
+		mode:            DEFAULT,
+		choosePlaylist:  choosePlaylist,
+		currentPlaylist: "",
+		focused:         true,
+		styles:          defaultStyles,
+	}
 }
 
 func DefineMode(name string) Modes {
@@ -81,9 +93,19 @@ func DefineMode(name string) Modes {
 func (m Model) View() string {
 	switch m.mode {
 	case DEFAULT:
-		return baseStyle.Render(m.table.View()) + "\n"
+		if m.focused {
+			m.styles.BorderForeground(lipgloss.Color("229"))
+		} else {
+			m.styles.BorderForeground(lipgloss.Color("240"))
+		}
+		return m.styles.Render(m.table.View())
 	case CHOOSE:
-		return m.choosePlaylist.View() + "\n" + m.currentPlaylist
+		if m.focused {
+			m.choosePlaylist.SetFocused(true)
+		} else {
+			m.choosePlaylist.SetFocused(false)
+		}
+		return m.choosePlaylist.View()
 	}
 	return m.table.View()
 }

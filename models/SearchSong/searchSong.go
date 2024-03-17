@@ -1,4 +1,4 @@
-package SearchSong
+package searchsong
 
 import (
 	"fmt"
@@ -27,6 +27,11 @@ type Model struct {
 	currentPlaylist string
 	query           string
 	options         []youtube.SearchResult
+	focused         bool
+}
+
+func (m *Model) SetFocused(b bool) {
+	m.focused = b
 }
 
 var baseStyle = lipgloss.NewStyle().
@@ -45,7 +50,7 @@ func (m Model) Focused() bool {
 
 	return m.table.Focused()
 }
-func (m Model) DefaultSearchSong(currPlaylist string) Model {
+func DefaultSearchSong(currPlaylist string) Model {
 	columns := []table.Column{{Title: "Search song", Width: 50}}
 
 	ti := textinput.New()
@@ -72,7 +77,7 @@ func (m Model) DefaultSearchSong(currPlaylist string) Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	return Model{table: t, textInput: ti, defaultRows: rows, mode: DEFAULT}
+	return Model{table: t, textInput: ti, defaultRows: rows, mode: DEFAULT, focused: false}
 }
 
 func DefineMode(name string) Modes {
@@ -88,8 +93,18 @@ func DefineMode(name string) Modes {
 func (m Model) View() string {
 	switch m.mode {
 	case DEFAULT:
+		if m.focused {
+			baseStyle.BorderForeground(lipgloss.Color("229"))
+		} else {
+			baseStyle.BorderForeground(lipgloss.Color("240"))
+		}
 		return baseStyle.Render(m.table.View()) + "\n"
 	case CHOOSE:
+		if m.focused {
+			baseStyle.BorderForeground(lipgloss.Color("229"))
+		} else {
+			baseStyle.BorderForeground(lipgloss.Color("240"))
+		}
 		return baseStyle.Render(m.table.View()) + "\n"
 	}
 	return m.table.View()
@@ -142,10 +157,10 @@ func (m Model) Update(msg tea.Msg, currentPlaylist string) (Model, tea.Cmd) {
 				yt := youtube.C{}
 				dlUrl, err := yt.DownloadVideo(option)
 				if err != nil {
-					fmt.Println("cry about it") // for historical reasons
+					fmt.Println("cry about it") // forhead reasons
 				}
-				yt.Download(dlUrl.DownloadUrl, option.Title, currentPlaylist)
 				m.table.SetRows(m.defaultRows)
+				go yt.Download(dlUrl.DownloadUrl, option.Title, currentPlaylist)
 			default:
 				m.table, cmd = m.table.Update(msg)
 			}

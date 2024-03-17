@@ -20,6 +20,11 @@ type Model struct {
 	currentPlaylist string
 	defaultRows     []table.Row
 	mode            Modes
+	focused         bool
+}
+
+func (m *Model) SetFocused(b bool) {
+	m.focused = b
 }
 
 var baseStyle = lipgloss.NewStyle().
@@ -30,7 +35,7 @@ func (m Model) Init() tea.Cmd { return nil }
 func (m Model) CurrPlaylist() string {
 	return m.currentPlaylist
 }
-func (m Model) DefaultPlaylist() Model {
+func DefaultPlaylist() Model {
 	columns := []table.Column{{Title: "Playlists", Width: 10}}
 	pl := playlists.P{}
 	pls, err := pl.ShowAllPlaylists()
@@ -59,12 +64,17 @@ func (m Model) DefaultPlaylist() Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	return Model{table: t, defaultRows: rows, mode: DEFAULT}
+	return Model{table: t, defaultRows: rows, mode: DEFAULT, focused: false}
 }
 
 func (m Model) View() string {
 	switch m.mode {
 	case DEFAULT:
+		if m.focused {
+			baseStyle.BorderForeground(lipgloss.Color("229"))
+		} else {
+			baseStyle.BorderForeground(lipgloss.Color("240"))
+		}
 		return baseStyle.Render(m.table.View())
 	case CHOOSEN:
 		return baseStyle.Render(m.table.View()) + m.currentPlaylist
