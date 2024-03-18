@@ -36,7 +36,7 @@ type DownloadUrl struct {
 	DownloadUrl string
 }
 
-func (c C) mapSearchResponseToSearchResult(jsonResponse []byte) ([]SearchResult, error) {
+func (c *C) mapSearchResponseToSearchResult(jsonResponse []byte) ([]SearchResult, error) {
 	query, err := gojq.Parse(`
 		.contents .twoColumnSearchResultsRenderer .primaryContents 
 		.sectionListRenderer .contents[0] .itemSectionRenderer .contents 
@@ -80,8 +80,8 @@ func (c C) mapSearchResponseToSearchResult(jsonResponse []byte) ([]SearchResult,
 
 	return searchResults, nil
 }
-func (c *C) Download(dl_url string, title string, playlistPath string) error {
-	req, err := http.NewRequest("GET", dl_url, nil)
+func (c *C) Download(dlUrl string, title string, playlistPath string) error {
+	req, err := http.NewRequest("GET", dlUrl, nil)
 	if err != nil {
 		return err
 	}
@@ -97,11 +97,26 @@ func (c *C) Download(dl_url string, title string, playlistPath string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("ffmpeg", "-i", fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, "sample"), "-map", "0:a", "-c", "copy", fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, title))
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i",
+		fmt.Sprintf(
+			"./playlists/dir/%s/%s.mp4",
+			playlistPath, "sample"),
+		"-map", "0:a", "-c", "copy",
+		fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, title))
+	transformCmd := exec.Command(
+		"ffmpeg",
+		"-i",
+		fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, title),
+		fmt.Sprintf("./playlists/dir/%s/%s.mp3", playlistPath, title),
+	)
 	//cmd.Stdout = os.Stdout
 	//cmd.Stderr = os.Stderr
 	cmd.Run()
-	defer os.Remove(fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, "sample"))
+	transformCmd.Run()
+	defer os.Remove(fmt.Sprintf("./playlists/dir/%s/sample.mp4", playlistPath))
+	defer os.Remove(fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, title))
 
 	return nil
 }

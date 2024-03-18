@@ -64,7 +64,7 @@ func (m Model) DefaultPlaylist() Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	choosePlaylist := m.choosePlaylist.DefaultPlaylist()
+	choosePlaylist := ChoosePlaylist.DefaultPlaylist()
 	return Model{table: t, defaultRows: rows, mode: DEFAULT, choosePlaylist: choosePlaylist, currentPlaylist: ""}
 }
 

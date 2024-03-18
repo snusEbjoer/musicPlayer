@@ -1,13 +1,18 @@
-// Sample Go code for user authorization
-
 package main
 
 import (
 	"fmt"
-	tea "github.com/charmbracelet/bubbletea"
+	"log"
 	PlaylistsTable "main/models/Playlists"
 	"main/models/SearchSong"
+	"math"
 	"os"
+	"strings"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/faiface/beep/mp3"
+	"github.com/faiface/beep/speaker"
 )
 
 type Mode int
@@ -29,20 +34,49 @@ type model struct {
 	cursor           int
 	focusedWindowIdx Windows
 	playlist         PlaylistsTable.Model
-	searchSong       SearchSong.Model
-	//Songs
-	//player
-	currentPlaylist string
-	//currentSong
-	//isPause
+	searchSong       searchsong.Model
+	currentPlaylist  string
 }
 
 func (m model) Init() tea.Cmd { return nil }
 
 func initialModel() model {
-	playlists := PlaylistsTable.Model{}.DefaultPlaylist()
-	return model{mode: NORMAL, playlist: playlists, cursor: 0, searchSong: SearchSong.Model{}.DefaultSearchSong(playlists.GetCurrPlaylist())}
+	playlists := PlaylistsTable.DefaultPlaylist()
+	return model{
+		mode:       NORMAL,
+		playlist:   playlists,
+		cursor:     0,
+		searchSong: searchsong.DefaultSearchSong(playlists.GetCurrPlaylist()),
+	}
 }
+
+func (m *model) BlurWindow() {
+	switch m.focusedWindowIdx {
+	case PLAYLISTS:
+		m.playlist.SetFocused(false)
+	case SEARCHSONG:
+		m.searchSong.SetFocused(false)
+	}
+}
+
+func (m *model) SwitchFocus() {
+	switch m.focusedWindowIdx {
+	case PLAYLISTS:
+		m.playlist.SetFocused(true)
+	case SEARCHSONG:
+		m.searchSong.SetFocused(true)
+	}
+}
+
+func (m *model) FocusTable() {
+	switch m.focusedWindowIdx {
+	case PLAYLISTS:
+		m.playlist.Focus()
+	case SEARCHSONG:
+		m.searchSong.Focus()
+	}
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
@@ -52,28 +86,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "left":
 				if m.cursor > 0 {
+					m.BlurWindow()
 					m.cursor--
+					m.focusedWindowIdx = Windows(m.cursor)
+					m.SwitchFocus()
 				}
 			case "right":
 				if m.cursor < 2 {
+					m.BlurWindow()
 					m.cursor++
+					m.focusedWindowIdx = Windows(m.cursor)
+					m.SwitchFocus()
 				}
 			case "enter":
-				m.focusedWindowIdx = Windows(m.cursor)
 				m.mode = INPUT
+				m.FocusTable()
+
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			}
 		case INPUT:
+			if msg.String() == "esc" {
+				m.mode = NORMAL
+				m.playlist.Blur()
+				m.searchSong.Blur()
+			}
 			switch m.focusedWindowIdx {
 			case PLAYLISTS:
 				switch msg.String() {
-				case "esc":
-					if m.playlist.Focused() {
-						m.playlist.Blur()
-					} else {
-						m.playlist.Focus()
-					}
 				case "q", "ctrl+c":
 					return m, tea.Quit
 				default:
@@ -103,29 +143,72 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func NormalizeRight(s string, l int) string {
+	if len(s) < l {
+		return s + strings.Repeat(" ", l-len(s))
+	}
+	return s
+}
+
+func MaxRowLength(rows []string) int {
+	max := 0
+	for _, row := range rows {
+		if len(row) > max {
+			max = len(row)
+		}
+	}
+	return max
+}
+
+func mergeViewsInRow(view1, view2 string) string {
+	var sb strings.Builder
+	rows1 := strings.Split(view1, "\n")
+	rows2 := strings.Split(view2, "\n")
+	maxLen := math.Max(float64(len(rows1)), float64(len(rows2)))
+	maxRowLen := MaxRowLength(rows1)
+	for i := 0; i < int(maxLen); i++ {
+		if i < len(rows1) {
+			sb.WriteString(rows1[i])
+		} else {
+			sb.WriteString(strings.Repeat(" ", maxRowLen))
+		}
+		if i < len(rows2) {
+			sb.WriteString(rows2[i])
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
 func (m model) View() string {
 	s := "\n deeez player \n\n"
-	s += fmt.Sprintf("%s%s \n %d %d %d %s", m.playlist.View(), m.searchSong.View(), m.cursor, m.focusedWindowIdx, m.mode, m.currentPlaylist)
+	s += fmt.Sprintf("%s \n %d %d %d %s", mergeViewsInRow(m.playlist.View(), m.searchSong.View()), m.cursor, m.focusedWindowIdx, m.mode, m.currentPlaylist)
 	return s
-
 }
 
 func main() {
 	p := tea.NewProgram(initialModel())
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("Alas, there's been an error: %v", err)
-		os.Exit(1)
+		log.Fatalf("ASASA, there's been an error: %v", err)
 	}
-	//yt := youtube.C{}
-	//videoId, err := yt.Search("квинка слоумо")
-	//if err != nil {
-	//	fmt.Println(err)
-	//}
-	//fmt.Println(videoId)
-	//dlUrl, err := yt.DownloadVideo(videoId[0])
-	//if err != nil {
-	//	fmt.Sprintf("cry about it")
-	//}
-	//fmt.Println(dlUrl)
+}
 
+func (m *model) PlaySong(songName string) error {
+	f, err := os.Open("./playlists/dir/" + m.currentPlaylist + "/" + songName)
+	if err != nil {
+		return err
+	}
+	streamer, format, err := mp3.Decode(f)
+	if err != nil {
+		return err
+	}
+	err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+	if err != nil {
+		return err
+	}
+	speaker.Lock()
+	go speaker.Play(streamer)
+	defer speaker.Unlock()
+	defer streamer.Close()
+	return nil
 }
