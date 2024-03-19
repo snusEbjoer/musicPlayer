@@ -2,10 +2,14 @@ package ChoosePlaylist
 
 import (
 	"fmt"
+	"log"
+	"main/models/Songs"
+	"main/playlists"
+	"main/state"
+
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"main/playlists"
 )
 
 type Modes int
@@ -16,15 +20,10 @@ const (
 )
 
 type Model struct {
-	table           table.Model
-	currentPlaylist string
-	defaultRows     []table.Row
-	mode            Modes
-	focused         bool
-}
-
-func (m *Model) SetFocused(b bool) {
-	m.focused = b
+	table       table.Model
+	defaultRows []table.Row
+	mode        Modes
+	state       *state.State
 }
 
 var baseStyle = lipgloss.NewStyle().
@@ -32,10 +31,8 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 func (m Model) Init() tea.Cmd { return nil }
-func (m Model) CurrPlaylist() string {
-	return m.currentPlaylist
-}
-func DefaultPlaylist() Model {
+
+func DefaultPlaylist(state *state.State) Model {
 	columns := []table.Column{{Title: "Choose playlist", Width: 30}}
 	pl := playlists.P{}
 	pls, err := pl.ShowAllPlaylists()
@@ -64,20 +61,20 @@ func DefaultPlaylist() Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	return Model{table: t, defaultRows: rows, mode: DEFAULT, focused: false}
+	return Model{table: t, defaultRows: rows, mode: DEFAULT, state: state}
 }
 
 func (m Model) View() string {
 	switch m.mode {
 	case DEFAULT:
-		if m.focused {
+		if m.state.CurrentWindow == state.PLAYLISTS {
 			baseStyle.BorderForeground(lipgloss.Color("229"))
 		} else {
 			baseStyle.BorderForeground(lipgloss.Color("240"))
 		}
 		return baseStyle.Render(m.table.View())
 	case CHOOSEN:
-		if m.focused {
+		if m.state.CurrentWindow == state.PLAYLISTS {
 			baseStyle.BorderForeground(lipgloss.Color("229"))
 		} else {
 			baseStyle.BorderForeground(lipgloss.Color("240"))
@@ -90,7 +87,7 @@ func (m *Model) UpdatePlaylist() {
 	pl := playlists.P{}
 	pls, err := pl.ShowAllPlaylists()
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 	var rows []table.Row
 	for _, el := range pls {
@@ -114,7 +111,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			case "enter":
-				m.currentPlaylist = m.table.SelectedRow()[0]
+				m.state.CurrentPlaylist = m.table.SelectedRow()[0]
+				m.state.UpdateSongs()
+				return m, func() tea.Msg {
+					return Songs.SongsUpdatedMsg(true)
+				}
 			}
 		}
 

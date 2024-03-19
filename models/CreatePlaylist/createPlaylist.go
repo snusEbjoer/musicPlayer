@@ -1,27 +1,24 @@
 package CreatePlaylist
 
 import (
+	"main/models/ChoosePlaylist"
+	"main/playlists"
+	"main/state"
+
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"main/models/ChoosePlaylist"
-	"main/playlists"
 )
 
 type Modes int
 
 type Model struct {
-	table           table.Model
-	currentPlaylist string
-	textInput       textinput.Model
-	defaultRows     []table.Row
-	focused         bool
-	choosePlaylist  ChoosePlaylist.Model
-}
-
-func (m *Model) SetFocused(b bool) {
-	m.focused = b
+	table          table.Model
+	textInput      textinput.Model
+	defaultRows    []table.Row
+	choosePlaylist ChoosePlaylist.Model
+	state          *state.State
 }
 
 var baseStyle = lipgloss.NewStyle().
@@ -29,10 +26,7 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 func (m Model) Init() tea.Cmd { return textinput.Blink }
-func (m Model) CurrPlaylist() string {
-	return m.currentPlaylist
-}
-func DefaultPlaylist() Model {
+func DefaultPlaylist(state *state.State) Model {
 	columns := []table.Column{{Title: "Create playlist", Width: 30}}
 	ti := textinput.New()
 	ti.Placeholder = "Create playlist"
@@ -59,12 +53,12 @@ func DefaultPlaylist() Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	choosePlaylist := ChoosePlaylist.DefaultPlaylist()
-	return Model{table: t, defaultRows: rows, focused: false, textInput: ti, choosePlaylist: choosePlaylist}
+	choosePlaylist := ChoosePlaylist.DefaultPlaylist(state)
+	return Model{table: t, defaultRows: rows, textInput: ti, choosePlaylist: choosePlaylist, state: state}
 }
 
 func (m Model) View() string {
-	if m.focused {
+	if m.state.CurrentWindow == state.PLAYLISTS {
 		baseStyle.BorderForeground(lipgloss.Color("229"))
 	} else {
 		baseStyle.BorderForeground(lipgloss.Color("240"))

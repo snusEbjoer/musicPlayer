@@ -2,12 +2,16 @@ package searchsong
 
 import (
 	"fmt"
+	"log"
+	// "log"
+	PlaylistsTable "main/models/Playlists"
+	"main/state"
+	"main/youtube"
+
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	PlaylistsTable "main/models/Playlists"
-	"main/youtube"
 )
 
 type Modes int
@@ -18,20 +22,19 @@ const (
 	CHOOSE
 )
 
-type Model struct {
-	textInput       textinput.Model
-	table           table.Model
-	defaultRows     []table.Row
-	mode            Modes
-	playlistTable   PlaylistsTable.Model
-	currentPlaylist string
-	query           string
-	options         []youtube.SearchResult
-	focused         bool
+type DownloadMessage struct {
+	Option youtube.SearchResult
 }
 
-func (m *Model) SetFocused(b bool) {
-	m.focused = b
+type Model struct {
+	textInput     textinput.Model
+	table         table.Model
+	defaultRows   []table.Row
+	mode          Modes
+	playlistTable PlaylistsTable.Model
+	query         string
+	options       []youtube.SearchResult
+	state         *state.State
 }
 
 var baseStyle = lipgloss.NewStyle().
@@ -49,7 +52,7 @@ func (m *Model) Blur() {
 func (m *Model) Focused() bool {
 	return m.table.Focused()
 }
-func DefaultSearchSong(currPlaylist string) Model {
+func DefaultSearchSong(state *state.State) Model {
 	columns := []table.Column{{Title: "Search song", Width: 50}}
 
 	ti := textinput.New()
@@ -76,36 +79,26 @@ func DefaultSearchSong(currPlaylist string) Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	return Model{table: t, textInput: ti, defaultRows: rows, mode: DEFAULT, focused: false}
+	return Model{table: t, textInput: ti, defaultRows: rows, mode: DEFAULT, state: state}
 }
 
 func (m Model) View() string {
-	switch m.mode {
-	case DEFAULT:
-		if m.focused {
-			baseStyle.BorderForeground(lipgloss.Color("229"))
-		} else {
-			baseStyle.BorderForeground(lipgloss.Color("240"))
-		}
-		return baseStyle.Render(m.table.View()) + "\n"
-	case CHOOSE:
-		if m.focused {
-			baseStyle.BorderForeground(lipgloss.Color("229"))
-		} else {
-			baseStyle.BorderForeground(lipgloss.Color("240"))
-		}
-		return baseStyle.Render(m.table.View()) + "\n"
+	var styles lipgloss.Style
+	if m.state.CurrentWindow == state.SEARCH {
+		styles = baseStyle.BorderForeground(lipgloss.Color("229"))
+	} else {
+		styles = baseStyle.BorderForeground(lipgloss.Color("240"))
 	}
-	return m.table.View()
+	return styles.Render(m.table.View())
 }
 
-func (m Model) getOption(title string) youtube.SearchResult {
+func (m Model) getOption(title string) (youtube.SearchResult, error) {
 	for _, op := range m.options {
 		if op.Title == title {
-			return op
+			return op, nil
 		}
 	}
-	return youtube.SearchResult{}
+	return youtube.SearchResult{}, fmt.Errorf("option not found")
 }
 
 func (m Model) Update(msg tea.Msg, currentPlaylist string) (Model, tea.Cmd) {
@@ -114,58 +107,74 @@ func (m Model) Update(msg tea.Msg, currentPlaylist string) (Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.mode {
 		case DEFAULT:
-			switch msg.String() {
-			case "esc":
-				m.table.SetRows(m.defaultRows)
-				m.textInput.SetValue("")
-			case "enter":
-				m.query = m.textInput.Value()
-				if len(m.textInput.Value()) == 0 {
-					return m, cmd
+			{
+				switch msg.String() {
+				case "esc":
+					{
+						m.textInput.SetValue("")
+						m.table.SetRows(m.defaultRows)
+					}
+				case "enter":
+					{
+						m.query = m.textInput.Value()
+						if len(m.textInput.Value()) == 0 {
+							return m, cmd
+						}
+						m.textInput.SetValue("")
+						m.mode = CHOOSE
+						pl := youtube.C{}
+						options, err := pl.Search(m.query)
+						if err != nil {
+							return m, tea.Quit
+						}
+						if len(options) == 0 {
+							m.table.SetRows([]table.Row{{"No results, press ESC to go back."}})
+							return m, cmd
+						}
+						m.options = options
+						var rows []table.Row
+						for _, op := range options {
+							rows = append(rows, table.Row{op.Title})
+						}
+						m.table.SetRows(rows)
+					}
+				default:
+					{
+						m.textInput, cmd = m.textInput.Update(msg)
+						m.table.SetRows([]table.Row{{m.textInput.View()}})
+					}
 				}
-				m.textInput.SetValue("")
-				m.mode = CHOOSE
-				pl := youtube.C{}
-				options, err := pl.Search(m.query)
-				if err != nil {
-					return m, tea.Quit
-				}
-				if len(options) == 0 {
-					m.table.SetRows([]table.Row{{"No results, press ESC to go back."}})
-					return m, cmd
-				}
-				m.options = options
-				var rows []table.Row
-				for _, op := range options {
-					rows = append(rows, table.Row{op.Title})
-				}
-				m.table.SetRows(rows)
-			default:
-				m.textInput, cmd = m.textInput.Update(msg)
-				m.table.SetRows([]table.Row{{m.textInput.View()}})
 			}
 		case CHOOSE:
-			switch msg.String() {
-			case "esc":
-				m.table.SetRows(m.defaultRows)
-				m.textInput.SetValue("")
-				m.mode = DEFAULT
-			case "enter":
-				currOp := m.table.SelectedRow()[0]
-				option := m.getOption(currOp)
-				yt := youtube.C{}
-				dlUrl, err := yt.DownloadVideo(option)
-				if err != nil {
-					fmt.Println("cry about it") // for historical  reasons
+			{
+				switch msg.String() {
+				case "esc":
+					{
+						m.textInput.SetValue("")
+						m.mode = DEFAULT
+						m.table.SetRows(m.defaultRows)
+					}
+				case "enter":
+					{
+						currOp := m.table.SelectedRow()[0]
+						option, err := m.getOption(currOp)
+						if err != nil {
+							log.Fatal(err)
+						}
+						m.mode = DEFAULT
+						m.textInput.SetValue("")
+						m.table.SetRows(m.defaultRows)
+						return m, func() tea.Msg {
+							return DownloadMessage{
+								Option: option,
+							}
+						}
+					}
+				default:
+					{
+						m.table, cmd = m.table.Update(msg)
+					}
 				}
-				m.table.SetRows(m.defaultRows)
-				m.mode = DEFAULT
-				m.textInput.SetValue("")
-				m.table.SetRows([]table.Row{{m.textInput.View()}})
-				go yt.Download(dlUrl.DownloadUrl, option.Title, currentPlaylist)
-				m.table.SetCursor(0)
-			default:
-				m.table, cmd = m.table.Update(msg)
 			}
 
 		}
