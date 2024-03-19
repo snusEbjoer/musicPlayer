@@ -60,10 +60,17 @@ func DefaultSongs() (Model, error) {
 	if err != nil {
 		return Model{}, err
 	}
-	columns := []table.Column{{Title: "Songs", Width: 50}}
+	columns := []table.Column{{Title: "Songs", Width: 50}, {Title: "", Width: 5}}
 	var rows []table.Row
 	for _, song := range songs {
-		rows = append(rows, table.Row{song})
+		f, err := os.Open("./playlists/dir/" + currPls + "/" + song)
+		streamer, format, err := mp3.Decode(f)
+		if err != nil {
+			fmt.Println(err)
+		}
+		rows = append(rows, table.Row{song, format.SampleRate.D(streamer.Len()).Round(time.Second).String()})
+		streamer.Close()
+		f.Close()
 	}
 	t := table.New(
 		table.WithColumns(columns),
@@ -90,7 +97,9 @@ func DefaultSongs() (Model, error) {
 		defaultRows:     rows,
 		mode:            DEFAULT,
 		choosePlaylist:  choosePlaylist,
-		currentPlaylist: currPls}, nil
+		currentPlaylist: currPls,
+		currentSong:     songs[0],
+	}, nil
 }
 
 func DefineMode(name string) Modes {
@@ -122,12 +131,55 @@ func (m Model) View() string {
 func (m *Model) SetCurrPlaylist(newPlaylist string) {
 	m.currentPlaylist = newPlaylist
 	pl := playlists.P{}
-	pls, _ := pl.ShowAllSongs(newPlaylist)
+	songs, _ := pl.ShowAllSongs(newPlaylist)
 	var rows []table.Row
-	for _, pl := range pls {
-		rows = append(rows, table.Row{pl})
+	for _, song := range songs {
+		f, err := os.Open("./playlists/dir/" + m.currentPlaylist + "/" + song)
+		streamer, format, err := mp3.Decode(f)
+		if err != nil {
+			fmt.Println(err)
+		}
+		rows = append(rows, table.Row{song, format.SampleRate.D(streamer.Len()).Round(time.Second).String()})
+		streamer.Close()
+		f.Close()
 	}
 	m.table.SetRows(rows)
+}
+func (m *Model) SetCurrentSong(song string) {
+	m.currentSong = song
+}
+func (m *Model) GetCurrentSong() string {
+	return m.currentSong
+}
+func (m *Model) NextSong() string {
+	pl := playlists.P{}
+	songs, _ := pl.ShowAllSongs(m.currentPlaylist)
+	for i := range songs {
+		if songs[i] == m.currentSong {
+			if i == len(songs)-1 {
+				m.table.SetCursor(0)
+				return songs[0]
+			}
+			m.table.SetCursor(i + 1)
+			return songs[i+1]
+		}
+	}
+	return songs[0]
+}
+func (m *Model) PrevSong() string {
+	pl := playlists.P{}
+	songs, _ := pl.ShowAllSongs(m.currentPlaylist)
+	for i := range songs {
+		if songs[i] == m.currentSong {
+			if i == 0 {
+				m.table.SetCursor(len(songs) - 1)
+				return songs[len(songs)-1]
+			}
+			m.table.SetCursor(i - 1)
+			return songs[i-1]
+		}
+	}
+	return songs[0]
 }
 func (m *Model) PlaySong(songName string) error {
 	f, err := os.Open("./playlists/dir/" + m.currentPlaylist + "/" + songName)
@@ -174,7 +226,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, tea.Quit
 		case "enter":
 			m.currentSong = m.table.SelectedRow()[0]
-			go m.PlaySong(m.table.SelectedRow()[0])
+			//go m.PlaySong(m.table.SelectedRow()[0])
 		default:
 			m.table, cmd = m.table.Update(msg)
 		}
