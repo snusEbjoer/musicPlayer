@@ -1,15 +1,16 @@
 package player
 
 import (
+	ChoosePlaylist "main/models/ChoosePlaylist"
+	"main/state"
+	"os"
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
-	ChoosePlaylist "main/models/ChoosePlaylist"
-	"main/playlists"
-	"os"
-	"time"
 )
 
 type Modes int
@@ -19,16 +20,17 @@ const (
 	REPEAT
 )
 
+const debounce = 500 * time.Millisecond
+
+type tickMsg = int
+
 type Model struct {
-	mode            Modes
-	choosePlaylist  ChoosePlaylist.Model
-	currentPlaylist string
-	focused         bool
-	songs           []string
-	currentSong     string
-	done            chan bool
-	//progress        progress.Model
-	//createPlaylist
+	mode           Modes
+	choosePlaylist ChoosePlaylist.Model
+	focused        bool
+	done           chan bool
+	controlLocked  bool
+	state          *state.State
 }
 
 var baseStyle = lipgloss.NewStyle().
@@ -37,47 +39,35 @@ var baseStyle = lipgloss.NewStyle().
 
 func (m Model) Init() tea.Cmd { return nil }
 
-func DefaultPlaylist() (Model, error) {
-	pl := playlists.P{}
-	currPls, _ := pl.GetDefaultPlaylist()
-
+func DefaultPlaylist(state *state.State) Model {
 	return Model{
-		mode:            DEFAULT,
-		currentPlaylist: currPls,
-		focused:         false,
-		currentSong:     "No song",
-		done:            make(chan bool),
-	}, nil
+		mode:          DEFAULT,
+		done:          make(chan bool),
+		controlLocked: false,
+		state:         state,
+	}
 }
 
-func (m *Model) SetFocused(b bool) {
-	m.focused = b
-}
-func (m *Model) SetCurrentSong(song string) {
-	m.currentSong = song
-}
 func (m Model) View() string {
 	switch m.mode {
 	case DEFAULT:
-		if m.focused {
+		if m.state.CurrentWindow == state.PLAYER {
 			baseStyle.BorderForeground(lipgloss.Color("229"))
 		} else {
 			baseStyle.BorderForeground(lipgloss.Color("240"))
 		}
-		return baseStyle.Render(m.currentSong) + "\n"
+		return baseStyle.Render(m.state.CurrentSong) + "\n"
 	}
-	return m.currentSong
+	return m.state.CurrentSong
 }
 func (m *Model) EndSong() {
-	_, ok := <-m.done
-	if ok == false {
-		m.done <- true
-	}
+	speaker.Lock()
 	speaker.Close()
+	speaker.Unlock()
 }
 func (m *Model) PlaySong() error {
-	f, err := os.Open("./playlists/dir/" + m.currentPlaylist + "/" + m.currentSong)
-	//fmt.Println("./playlists/dir/" + m.currentPlaylist + "/" + songName)
+	f, err := os.Open("./playlists/dir/" + m.state.CurrentPlaylist + "/" + m.state.CurrentSong)
+	ch := make(chan bool)
 	if err != nil {
 		return err
 	}
@@ -91,27 +81,20 @@ func (m *Model) PlaySong() error {
 	}
 
 	speaker.Play(beep.Seq(streamer, beep.Callback(func() {
-		_, ok := <-m.done
-		if ok == false {
-			m.done <- true
-		}
+		ch <- true
 	})))
-	_, ok := <-m.done
-	if ok {
-		<-m.done
-	}
+	<-ch
 
-	speaker.Close()
-	//speaker.Lock()
-	//go speaker.Play(streamer)
-	//defer speaker.Unlock()
 	defer streamer.Close()
 	return nil
 }
+
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-
+	case tickMsg:
+		m.controlLocked = false
+		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
@@ -120,12 +103,24 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "enter":
 			go m.EndSong()
 			go m.PlaySong()
-		case "ctrl+right":
-			go m.EndSong()
-			go m.PlaySong()
-		case "ctrl+left":
-			go m.EndSong()
-			go m.PlaySong()
+		case "alt+right":
+			if !m.controlLocked {
+				m.EndSong()
+				go m.PlaySong()
+				m.controlLocked = true
+				return m, tea.Tick(debounce, func(time.Time) tea.Msg {
+					return tickMsg(0)
+				})
+			}
+		case "alt+left":
+			if !m.controlLocked {
+				m.EndSong()
+				go m.PlaySong()
+				m.controlLocked = true
+				return m, tea.Tick(debounce, func(time.Time) tea.Msg {
+					return tickMsg(0)
+				})
+			}
 		default:
 		}
 	}

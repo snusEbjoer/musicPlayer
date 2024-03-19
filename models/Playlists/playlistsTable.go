@@ -2,12 +2,15 @@ package PlaylistsTable
 
 import (
 	"fmt"
+	ChoosePlaylist "main/models/ChoosePlaylist"
+	"main/models/CreatePlaylist"
+	"main/models/Songs"
+	"main/playlists"
+	"main/state"
+
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	ChoosePlaylist "main/models/ChoosePlaylist"
-	"main/models/CreatePlaylist"
-	"main/playlists"
 )
 
 type Modes int
@@ -19,24 +22,19 @@ const (
 )
 
 type Model struct {
-	table           table.Model
-	defaultRows     []table.Row
-	mode            Modes
-	choosePlaylist  ChoosePlaylist.Model
-	currentPlaylist string
-	focused         bool
-	styles          lipgloss.Style
-	createPlaylist  CreatePlaylist.Model
+	table          table.Model
+	defaultRows    []table.Row
+	mode           Modes
+	choosePlaylist ChoosePlaylist.Model
+	styles         lipgloss.Style
+	createPlaylist CreatePlaylist.Model
+	state          *state.State
 }
 
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Focus() {
 	m.table.Focus()
-}
-
-func (m *Model) SetFocused(b bool) {
-	m.focused = b
 }
 
 func (m *Model) Blur() {
@@ -46,7 +44,7 @@ func (m *Model) Focused() bool {
 
 	return m.table.Focused()
 }
-func DefaultPlaylist() Model {
+func DefaultPlaylist(state *state.State) Model {
 	pl := playlists.P{}
 	columns := []table.Column{{Title: "Playlists", Width: 30}}
 	rows := []table.Row{{"Create playlist"}, {"Choose playlist"}}
@@ -73,22 +71,21 @@ func DefaultPlaylist() Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	choosePlaylist := ChoosePlaylist.DefaultPlaylist()
-	createPlaylist := CreatePlaylist.DefaultPlaylist()
+	choosePlaylist := ChoosePlaylist.DefaultPlaylist(state)
+	createPlaylist := CreatePlaylist.DefaultPlaylist(state)
 	currPls, err := pl.GetDefaultPlaylist()
 	if err != nil {
 		currPls = ""
 	}
 	fmt.Println(currPls)
 	return Model{
-		table:           t,
-		defaultRows:     rows,
-		mode:            DEFAULT,
-		choosePlaylist:  choosePlaylist,
-		currentPlaylist: currPls,
-		focused:         true,
-		styles:          defaultStyles,
-		createPlaylist:  createPlaylist,
+		table:          t,
+		defaultRows:    rows,
+		mode:           DEFAULT,
+		choosePlaylist: choosePlaylist,
+		styles:         defaultStyles,
+		createPlaylist: createPlaylist,
+		state:          state,
 	}
 }
 
@@ -105,35 +102,26 @@ func DefineMode(name string) Modes {
 func (m Model) View() string {
 	switch m.mode {
 	case DEFAULT:
-		if m.focused {
+		if m.state.CurrentWindow == state.PLAYLISTS {
 			m.styles.BorderForeground(lipgloss.Color("229"))
 		} else {
 			m.styles.BorderForeground(lipgloss.Color("240"))
 		}
 		return m.styles.Render(m.table.View())
 	case CHOOSE:
-		if m.focused {
-			m.choosePlaylist.SetFocused(true)
-		} else {
-			m.choosePlaylist.SetFocused(false)
-		}
 		return m.choosePlaylist.View()
 	case CREATE:
-		if m.focused {
-			m.createPlaylist.SetFocused(true)
-		} else {
-			m.createPlaylist.SetFocused(false)
-		}
 		return m.createPlaylist.View()
 	}
 	return m.table.View()
 }
-func (m *Model) GetCurrPlaylist() string {
-	return m.currentPlaylist
-}
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case Songs.SongsUpdatedMsg:
+		return m, func() tea.Msg {
+			return Songs.SongsUpdatedMsg(true)
+		}
 	case tea.KeyMsg:
 		switch m.mode {
 		case DEFAULT:
@@ -151,13 +139,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.mode = DEFAULT
 				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
 			case "enter":
-				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
-				m.currentPlaylist = m.choosePlaylist.CurrPlaylist()
 				m.mode = DEFAULT
-				return m, nil
+				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
+				return m, cmd
 			default:
 				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
-
 			}
 		case CREATE:
 			switch msg.String() {

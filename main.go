@@ -7,7 +7,8 @@ import (
 	"main/models/SearchSong"
 	"main/models/Songs"
 	"main/models/player"
-	"main/playlists"
+	"main/state"
+	"main/youtube"
 	"math"
 	"os"
 	"strings"
@@ -17,6 +18,8 @@ import (
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 )
+
+var program = tea.NewProgram(initialModel())
 
 type Mode int
 type Windows int
@@ -32,65 +35,53 @@ const (
 	INPUT
 )
 
+type SongsUpdatedMsg bool
+
 type model struct {
 	mode             Mode
 	cursor           int
 	focusedWindowIdx Windows
-	playlist         PlaylistsTable.Model
-	searchSong       searchsong.Model
-	currentPlaylist  string
-	songs            Songs.Model
-	player           player.Model
+	state            *state.State
+
+	searchSong searchsong.Model
+	playlist   PlaylistsTable.Model
+	songs      Songs.Model
+	player     player.Model
 }
 
 func (m model) Init() tea.Cmd { return nil }
 
 func initialModel() model {
-	playlistsTable := PlaylistsTable.DefaultPlaylist()
-	pl := playlists.P{}
-	currentPlaylist, err := pl.GetDefaultPlaylist()
+	state := state.New()
+	playlistsTable := PlaylistsTable.DefaultPlaylist(state)
+	err := state.UpdateSongs()
 	if err != nil {
-		currentPlaylist = ""
+		log.Fatal(err)
 	}
-	songs, _ := Songs.DefaultSongs()
-	player, _ := player.DefaultPlaylist()
-	player.SetCurrentSong(songs.GetCurrentSong())
+	songs, _ := Songs.DefaultSongs(state)
+	player := player.DefaultPlaylist(state)
 
 	return model{
-		mode:            NORMAL,
-		playlist:        playlistsTable,
-		cursor:          0,
-		searchSong:      searchsong.DefaultSearchSong(playlistsTable.GetCurrPlaylist()),
-		currentPlaylist: currentPlaylist,
-		songs:           songs,
-		player:          player,
-	}
-}
-
-func (m *model) BlurWindow() {
-	switch m.focusedWindowIdx {
-	case PLAYLISTS:
-		m.playlist.SetFocused(false)
-	case SEARCHSONG:
-		m.searchSong.SetFocused(false)
-	case SONGS:
-		m.songs.SetFocused(false)
-	case PLAYER:
-		m.player.SetFocused(false)
+		mode:       NORMAL,
+		playlist:   playlistsTable,
+		cursor:     0,
+		searchSong: searchsong.DefaultSearchSong(state),
+		songs:      songs,
+		player:     player,
+		state:      state,
 	}
 }
 
 func (m *model) SwitchFocus() {
 	switch m.focusedWindowIdx {
 	case PLAYLISTS:
-		m.playlist.SetFocused(true)
+		m.state.CurrentWindow = state.PLAYLISTS
 	case SEARCHSONG:
-		m.searchSong.SetFocused(true)
+		m.state.CurrentWindow = state.SEARCH
 	case SONGS:
-		m.songs.SetFocused(true)
+		m.state.CurrentWindow = state.SONGS
 	case PLAYER:
-		m.player.SetFocused(true)
-
+		m.state.CurrentWindow = state.PLAYER
 	}
 }
 
@@ -109,18 +100,32 @@ func (m *model) FocusTable() {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case Songs.SongsUpdatedMsg:
+		m.state.UpdateSongs()
+		m.songs, _ = m.songs.Update(Songs.SongsUpdatedMsg(true))
+		return m, nil
+	case searchsong.DownloadMessage:
+		{
+			yt := youtube.C{}
+			dlUrl, err := yt.DownloadVideo(msg.Option)
+			if err != nil {
+				log.Fatal(err)
+			}
+			go func() {
+				yt.Download(dlUrl.DownloadUrl, msg.Option.Title, m.state.CurrentPlaylist)
+				program.Send(Songs.SongsUpdatedMsg(true))
+			}()
+		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "left":
 			if m.cursor > 0 {
-				m.BlurWindow()
 				m.cursor--
 				m.focusedWindowIdx = Windows(m.cursor)
 				m.SwitchFocus()
 			}
 		case "right":
 			if m.cursor < 3 {
-				m.BlurWindow()
 				m.cursor++
 				m.focusedWindowIdx = Windows(m.cursor)
 				m.SwitchFocus()
@@ -136,40 +141,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case "enter":
 				m.playlist, cmd = m.playlist.Update(msg)
-				m.currentPlaylist = m.playlist.GetCurrPlaylist()
-				m.songs.SetCurrPlaylist(m.currentPlaylist)
+				m.songs.SetCurrPlaylist(m.state.CurrentPlaylist)
 			default:
-				m.playlist, _ = m.playlist.Update(msg)
-				m.currentPlaylist = m.playlist.GetCurrPlaylist()
+				m.playlist, cmd = m.playlist.Update(msg)
+				return m, cmd
 			}
 		case SEARCHSONG:
 			switch msg.String() {
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			default:
-				m.searchSong, cmd = m.searchSong.Update(msg, m.currentPlaylist)
+				m.searchSong, cmd = m.searchSong.Update(msg, m.state.CurrentPlaylist)
 
 			}
 		case SONGS:
 			switch msg.String() {
 			case "enter":
 				m.songs, cmd = m.songs.Update(msg)
-				m.player.SetCurrentSong(m.songs.GetCurrentSong())
 			default:
 				m.songs, cmd = m.songs.Update(msg)
 			}
 		case PLAYER:
 			switch msg.String() {
-			case "ctrl+right":
-				nextSong := m.songs.NextSong()
-				m.player.SetCurrentSong(nextSong)
-				m.songs.SetCurrentSong(nextSong)
-				m.player, cmd = m.player.Update(msg)
-			case "ctrl+left":
-				prevSong := m.songs.PrevSong()
-				m.player.SetCurrentSong(prevSong)
-				m.songs.SetCurrentSong(prevSong)
-				m.player, cmd = m.player.Update(msg)
+			case "alt+right":
+				m.songs.NextSong()
+				m.player.EndSong()
+				go m.player.PlaySong()
+			case "alt+left":
+				m.songs.PrevSong()
+				m.player.EndSong()
+				go m.player.PlaySong()
 			default:
 				m.player, cmd = m.player.Update(msg)
 			}
@@ -177,6 +178,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, cmd
+}
+
+func SendUpdatedMsg() {
+	program.Send(SongsUpdatedMsg(true))
 }
 
 func NormalizeRight(s string, l int) string {
@@ -218,19 +223,30 @@ func mergeViewsInRow(view1, view2 string) string {
 
 func (m model) View() string {
 	s := "\n deeez player \n\n"
-	s += fmt.Sprintf("%s \n %s \n %s %d %d %d %s", mergeViewsInRow(m.playlist.View(), m.searchSong.View()), m.songs.View(), m.player.View(), m.cursor, m.focusedWindowIdx, m.mode, m.currentPlaylist)
+	s += fmt.Sprintf(
+		"%s\n%s\n%s %d %d %d %s",
+		mergeViewsInRow(
+			m.playlist.View(),
+			m.searchSong.View(),
+		),
+		m.songs.View(),
+		m.player.View(),
+		m.cursor,
+		m.focusedWindowIdx,
+		m.mode,
+		m.state.CurrentPlaylist,
+	)
 	return s
 }
 
 func main() {
-	p := tea.NewProgram(initialModel())
-	if _, err := p.Run(); err != nil {
+	if _, err := program.Run(); err != nil {
 		log.Fatalf("ASASA, there's been an error: %v", err)
 	}
 }
 
 func (m *model) PlaySong(songName string) error {
-	f, err := os.Open("./playlists/dir/" + m.currentPlaylist + "/" + songName)
+	f, err := os.Open("./playlists/dir/" + m.state.CurrentPlaylist + "/" + songName)
 	if err != nil {
 		return err
 	}
