@@ -5,6 +5,8 @@ import (
 	"log"
 	PlaylistsTable "main/models/Playlists"
 	"main/models/SearchSong"
+	"main/models/Songs"
+	"main/playlists"
 	"math"
 	"os"
 	"strings"
@@ -36,17 +38,26 @@ type model struct {
 	playlist         PlaylistsTable.Model
 	searchSong       searchsong.Model
 	currentPlaylist  string
+	songs            Songs.Model
 }
 
 func (m model) Init() tea.Cmd { return nil }
 
 func initialModel() model {
-	playlists := PlaylistsTable.DefaultPlaylist()
+	playlistsTable := PlaylistsTable.DefaultPlaylist()
+	pl := playlists.P{}
+	currentPlaylist, err := pl.GetDefaultPlaylist()
+	if err != nil {
+		currentPlaylist = ""
+	}
+	songs, _ := Songs.DefaultSongs()
 	return model{
-		mode:       NORMAL,
-		playlist:   playlists,
-		cursor:     0,
-		searchSong: searchsong.DefaultSearchSong(playlists.GetCurrPlaylist()),
+		mode:            NORMAL,
+		playlist:        playlistsTable,
+		cursor:          0,
+		searchSong:      searchsong.DefaultSearchSong(playlistsTable.GetCurrPlaylist()),
+		currentPlaylist: currentPlaylist,
+		songs:           songs,
 	}
 }
 
@@ -56,6 +67,8 @@ func (m *model) BlurWindow() {
 		m.playlist.SetFocused(false)
 	case SEARCHSONG:
 		m.searchSong.SetFocused(false)
+	case SONGS:
+		m.songs.SetFocused(false)
 	}
 }
 
@@ -65,6 +78,8 @@ func (m *model) SwitchFocus() {
 		m.playlist.SetFocused(true)
 	case SEARCHSONG:
 		m.searchSong.SetFocused(true)
+	case SONGS:
+		m.songs.SetFocused(true)
 	}
 }
 
@@ -74,69 +89,60 @@ func (m *model) FocusTable() {
 		m.playlist.Focus()
 	case SEARCHSONG:
 		m.searchSong.Focus()
+	case SONGS:
+		m.songs.Focus()
 	}
+
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch m.mode {
-		case NORMAL:
-			switch msg.String() {
-			case "left":
-				if m.cursor > 0 {
-					m.BlurWindow()
-					m.cursor--
-					m.focusedWindowIdx = Windows(m.cursor)
-					m.SwitchFocus()
-				}
-			case "right":
-				if m.cursor < 2 {
-					m.BlurWindow()
-					m.cursor++
-					m.focusedWindowIdx = Windows(m.cursor)
-					m.SwitchFocus()
-				}
-			case "enter":
-				m.mode = INPUT
-				m.FocusTable()
+		switch msg.String() {
+		case "left":
+			if m.cursor > 0 {
+				m.BlurWindow()
+				m.cursor--
+				m.focusedWindowIdx = Windows(m.cursor)
+				m.SwitchFocus()
+			}
+		case "right":
+			if m.cursor < 2 {
+				m.BlurWindow()
+				m.cursor++
+				m.focusedWindowIdx = Windows(m.cursor)
+				m.SwitchFocus()
+			}
 
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		}
+		switch m.focusedWindowIdx {
+		case PLAYLISTS:
+			switch msg.String() {
 			case "q", "ctrl+c":
 				return m, tea.Quit
+			case "enter":
+				m.playlist, cmd = m.playlist.Update(msg)
+				m.currentPlaylist = m.playlist.GetCurrPlaylist()
+				m.songs.SetCurrPlaylist(m.currentPlaylist)
+			default:
+				m.playlist, _ = m.playlist.Update(msg)
+				m.currentPlaylist = m.playlist.GetCurrPlaylist()
 			}
-		case INPUT:
-			if msg.String() == "esc" {
-				m.mode = NORMAL
-				m.playlist.Blur()
-				m.searchSong.Blur()
-			}
-			switch m.focusedWindowIdx {
-			case PLAYLISTS:
-				switch msg.String() {
-				case "q", "ctrl+c":
-					return m, tea.Quit
-				default:
-					m.playlist, _ = m.playlist.Update(msg)
-					m.currentPlaylist = m.playlist.GetCurrPlaylist()
-					if m.currentPlaylist != "" {
-						m.mode = NORMAL
-					}
-				}
-			case SEARCHSONG:
-				switch msg.String() {
-				case "esc":
-					if m.playlist.Focused() {
-						m.playlist.Blur()
-					} else {
-						m.playlist.Focus()
-					}
-				case "q", "ctrl+c":
-					return m, tea.Quit
-				default:
-					m.searchSong, cmd = m.searchSong.Update(msg, m.currentPlaylist)
+		case SEARCHSONG:
+			switch msg.String() {
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			default:
+				m.searchSong, cmd = m.searchSong.Update(msg, m.currentPlaylist)
 
-				}
+			}
+		case SONGS:
+			switch msg.String() {
+			default:
+				m.songs, cmd = m.songs.Update(msg)
 			}
 		}
 	}
@@ -182,7 +188,7 @@ func mergeViewsInRow(view1, view2 string) string {
 
 func (m model) View() string {
 	s := "\n deeez player \n\n"
-	s += fmt.Sprintf("%s \n %d %d %d %s", mergeViewsInRow(m.playlist.View(), m.searchSong.View()), m.cursor, m.focusedWindowIdx, m.mode, m.currentPlaylist)
+	s += fmt.Sprintf("%s \n %s \n %d %d %d %s", mergeViewsInRow(m.playlist.View(), m.searchSong.View()), m.songs.View(), m.cursor, m.focusedWindowIdx, m.mode, m.currentPlaylist)
 	return s
 }
 

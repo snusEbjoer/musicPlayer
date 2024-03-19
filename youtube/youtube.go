@@ -164,6 +164,7 @@ func (c *C) DownloadVideo(sr SearchResult) (DownloadUrl, error) {
 		fmt.Errorf("can't parse response JSON into SearchResults")
 	}
 	resultsList, ok := results.(string)
+
 	if !ok {
 		fmt.Errorf("can't parse response JSON into SearchResults")
 	}

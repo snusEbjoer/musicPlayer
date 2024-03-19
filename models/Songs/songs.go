@@ -1,10 +1,17 @@
 package Songs
 
 import (
+	"fmt"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/faiface/beep"
+	"github.com/faiface/beep/mp3"
+	"github.com/faiface/beep/speaker"
 	ChoosePlaylist "main/models/ChoosePlaylist"
+	"main/playlists"
+	"os"
+	"time"
 )
 
 type Modes int
@@ -21,6 +28,9 @@ type Model struct {
 	mode            Modes
 	choosePlaylist  ChoosePlaylist.Model
 	currentPlaylist string
+	focused         bool
+	songs           []string
+	currentSong     string
 	//createPlaylist
 }
 
@@ -30,26 +40,36 @@ var baseStyle = lipgloss.NewStyle().
 
 func (m Model) Init() tea.Cmd { return nil }
 
-func (m Model) Focus() {
+func (m *Model) Focus() {
 	m.table.Focus()
 }
-func (m Model) Blur() {
+func (m *Model) Blur() {
 	m.table.Blur()
 }
-func (m Model) Focused() bool {
+func (m *Model) Focused() bool {
 
 	return m.table.Focused()
 }
-func (m Model) DefaultPlaylist() Model {
-	columns := []table.Column{{Title: "Playlists", Width: 20}}
-	rows := []table.Row{{"Create playlist"}, {"Choose playlist"}}
+func DefaultSongs() (Model, error) {
+	pl := playlists.P{}
+	currPls, err := pl.GetDefaultPlaylist()
+	if err != nil {
+		currPls = ""
+	}
+	songs, err := pl.ShowAllSongs(currPls)
+	if err != nil {
+		return Model{}, err
+	}
+	columns := []table.Column{{Title: "Songs", Width: 50}}
+	var rows []table.Row
+	for _, song := range songs {
+		rows = append(rows, table.Row{song})
+	}
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithFocused(true),
-		table.WithWidth(20),
-
-		table.WithHeight(4),
+		table.WithHeight(7),
 	)
 
 	s := table.DefaultStyles()
@@ -65,7 +85,12 @@ func (m Model) DefaultPlaylist() Model {
 		Bold(false)
 	t.SetStyles(s)
 	choosePlaylist := ChoosePlaylist.DefaultPlaylist()
-	return Model{table: t, defaultRows: rows, mode: DEFAULT, choosePlaylist: choosePlaylist, currentPlaylist: ""}
+	return Model{
+		table:           t,
+		defaultRows:     rows,
+		mode:            DEFAULT,
+		choosePlaylist:  choosePlaylist,
+		currentPlaylist: currPls}, nil
 }
 
 func DefineMode(name string) Modes {
@@ -78,51 +103,81 @@ func DefineMode(name string) Modes {
 	return DEFAULT
 }
 
+func (m *Model) SetFocused(b bool) {
+	m.focused = b
+}
+
 func (m Model) View() string {
 	switch m.mode {
 	case DEFAULT:
+		if m.focused {
+			baseStyle.BorderForeground(lipgloss.Color("229"))
+		} else {
+			baseStyle.BorderForeground(lipgloss.Color("240"))
+		}
 		return baseStyle.Render(m.table.View()) + "\n"
-	case CHOOSE:
-		return m.choosePlaylist.View() + "\n" + m.currentPlaylist
 	}
 	return m.table.View()
 }
-func (m Model) GetCurrPlaylist() string {
-	return m.currentPlaylist
+func (m *Model) SetCurrPlaylist(newPlaylist string) {
+	m.currentPlaylist = newPlaylist
+	pl := playlists.P{}
+	pls, _ := pl.ShowAllSongs(newPlaylist)
+	var rows []table.Row
+	for _, pl := range pls {
+		rows = append(rows, table.Row{pl})
+	}
+	m.table.SetRows(rows)
+}
+func (m *Model) PlaySong(songName string) error {
+	f, err := os.Open("./playlists/dir/" + m.currentPlaylist + "/" + songName)
+	//fmt.Println("./playlists/dir/" + m.currentPlaylist + "/" + songName)
+	if err != nil {
+		return err
+	}
+	streamer, format, err := mp3.Decode(f)
+	if err != nil {
+		return err
+	}
+	err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+	fmt.Println(format.SampleRate.D(streamer.Len()), "\n")
+	if err != nil {
+		return err
+	}
+	done := make(chan bool)
+	speaker.Lock()
+	go speaker.Play(beep.Seq(streamer, beep.Callback(func() {
+		done <- true
+		speaker.Unlock()
+	})))
+
+	<-done
+	//speaker.Lock()
+	//go speaker.Play(streamer)
+	//defer speaker.Unlock()
+	defer streamer.Close()
+	return nil
 }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+
 	case tea.KeyMsg:
-		switch m.mode {
-		case DEFAULT:
-			switch msg.String() {
-			case "esc":
-				if m.table.Focused() {
-					m.table.Blur()
-				} else {
-					m.table.Focus()
-				}
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			case "enter":
-				m.mode = DefineMode(m.table.SelectedRow()[0])
-			default:
-				m.table, cmd = m.table.Update(msg)
+		switch msg.String() {
+		case "esc":
+			if m.table.Focused() {
+				m.table.Blur()
+			} else {
+				m.table.Focus()
 			}
-		case CHOOSE:
-			switch msg.String() {
-			case "enter":
-				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
-				m.currentPlaylist = m.choosePlaylist.CurrPlaylist()
-				m.mode = DEFAULT
-				return m, nil
-			default:
-				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
-			}
-
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		case "enter":
+			m.currentSong = m.table.SelectedRow()[0]
+			go m.PlaySong(m.table.SelectedRow()[0])
+		default:
+			m.table, cmd = m.table.Update(msg)
 		}
-
 	}
 
 	return m, cmd

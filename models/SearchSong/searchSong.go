@@ -40,14 +40,13 @@ var baseStyle = lipgloss.NewStyle().
 
 func (m Model) Init() tea.Cmd { return nil }
 
-func (m Model) Focus() {
+func (m *Model) Focus() {
 	m.table.Focus()
 }
-func (m Model) Blur() {
+func (m *Model) Blur() {
 	m.table.Blur()
 }
-func (m Model) Focused() bool {
-
+func (m *Model) Focused() bool {
 	return m.table.Focused()
 }
 func DefaultSearchSong(currPlaylist string) Model {
@@ -78,16 +77,6 @@ func DefaultSearchSong(currPlaylist string) Model {
 		Bold(false)
 	t.SetStyles(s)
 	return Model{table: t, textInput: ti, defaultRows: rows, mode: DEFAULT, focused: false}
-}
-
-func DefineMode(name string) Modes {
-	switch name {
-	case "Choose playlist":
-		return CHOOSE
-	case "Create playlist":
-		return CHOOSE
-	}
-	return DEFAULT
 }
 
 func (m Model) View() string {
@@ -126,16 +115,24 @@ func (m Model) Update(msg tea.Msg, currentPlaylist string) (Model, tea.Cmd) {
 		switch m.mode {
 		case DEFAULT:
 			switch msg.String() {
-			case "q", "ctrl+c":
-				return m, tea.Quit
+			case "esc":
+				m.table.SetRows(m.defaultRows)
+				m.textInput.SetValue("")
 			case "enter":
 				m.query = m.textInput.Value()
+				if len(m.textInput.Value()) == 0 {
+					return m, cmd
+				}
 				m.textInput.SetValue("")
 				m.mode = CHOOSE
 				pl := youtube.C{}
 				options, err := pl.Search(m.query)
 				if err != nil {
 					return m, tea.Quit
+				}
+				if len(options) == 0 {
+					m.table.SetRows([]table.Row{{"No results, press ESC to go back."}})
+					return m, cmd
 				}
 				m.options = options
 				var rows []table.Row
@@ -151,16 +148,22 @@ func (m Model) Update(msg tea.Msg, currentPlaylist string) (Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc":
 				m.table.SetRows(m.defaultRows)
+				m.textInput.SetValue("")
+				m.mode = DEFAULT
 			case "enter":
 				currOp := m.table.SelectedRow()[0]
 				option := m.getOption(currOp)
 				yt := youtube.C{}
 				dlUrl, err := yt.DownloadVideo(option)
 				if err != nil {
-					fmt.Println("cry about it") // forhead reasons
+					fmt.Println("cry about it") // for historical  reasons
 				}
 				m.table.SetRows(m.defaultRows)
+				m.mode = DEFAULT
+				m.textInput.SetValue("")
+				m.table.SetRows([]table.Row{{m.textInput.View()}})
 				go yt.Download(dlUrl.DownloadUrl, option.Title, currentPlaylist)
+				m.table.SetCursor(0)
 			default:
 				m.table, cmd = m.table.Update(msg)
 			}

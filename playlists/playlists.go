@@ -16,7 +16,8 @@ type Playlists interface {
 type P struct{}
 
 func (p *P) CreatePlaylist(name string) {
-	os.Mkdir("./playlists/dir/"+name, os.ModePerm)
+
+	os.MkdirAll("./playlists/dir/"+name, os.ModePerm)
 }
 func (p *P) ShowAllPlaylists() ([]string, error) {
 	files, err := os.ReadDir("./playlists/dir/")
@@ -39,8 +40,29 @@ func (p *P) ShowAllSongs(name string) ([]string, error) {
 		return nil, err
 	}
 	res := make([]string, len(songs))
-	for _, v := range songs {
-		res = append(res, v.Name())
+	for i, _ := range songs {
+		res[i] = songs[i].Name()
 	}
 	return res, nil
+}
+func (p *P) GetDefaultPlaylist() (string, error) {
+	files, err := os.ReadDir("./playlists/dir")
+	if len(files) == 0 {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var playlist []os.DirEntry
+	for _, f := range files {
+		count, err := os.ReadDir("./playlists/dir/" + f.Name())
+		if err != nil {
+			return "", err
+		}
+		if len(count) >= len(playlist) {
+			playlist = count
+		}
+	}
+
+	return files[0].Name(), nil
 }

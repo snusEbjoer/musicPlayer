@@ -1,10 +1,13 @@
 package PlaylistsTable
 
 import (
+	"fmt"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	ChoosePlaylist "main/models/ChoosePlaylist"
+	"main/models/CreatePlaylist"
+	"main/playlists"
 )
 
 type Modes int
@@ -23,6 +26,7 @@ type Model struct {
 	currentPlaylist string
 	focused         bool
 	styles          lipgloss.Style
+	createPlaylist  CreatePlaylist.Model
 }
 
 func (m Model) Init() tea.Cmd { return nil }
@@ -43,7 +47,8 @@ func (m *Model) Focused() bool {
 	return m.table.Focused()
 }
 func DefaultPlaylist() Model {
-	columns := []table.Column{{Title: "Playlists", Width: 20}}
+	pl := playlists.P{}
+	columns := []table.Column{{Title: "Playlists", Width: 30}}
 	rows := []table.Row{{"Create playlist"}, {"Choose playlist"}}
 	t := table.New(
 		table.WithColumns(columns),
@@ -69,14 +74,21 @@ func DefaultPlaylist() Model {
 		Bold(false)
 	t.SetStyles(s)
 	choosePlaylist := ChoosePlaylist.DefaultPlaylist()
+	createPlaylist := CreatePlaylist.DefaultPlaylist()
+	currPls, err := pl.GetDefaultPlaylist()
+	if err != nil {
+		currPls = ""
+	}
+	fmt.Println(currPls)
 	return Model{
 		table:           t,
 		defaultRows:     rows,
 		mode:            DEFAULT,
 		choosePlaylist:  choosePlaylist,
-		currentPlaylist: "",
+		currentPlaylist: currPls,
 		focused:         true,
 		styles:          defaultStyles,
+		createPlaylist:  createPlaylist,
 	}
 }
 
@@ -106,10 +118,17 @@ func (m Model) View() string {
 			m.choosePlaylist.SetFocused(false)
 		}
 		return m.choosePlaylist.View()
+	case CREATE:
+		if m.focused {
+			m.createPlaylist.SetFocused(true)
+		} else {
+			m.createPlaylist.SetFocused(false)
+		}
+		return m.createPlaylist.View()
 	}
 	return m.table.View()
 }
-func (m Model) GetCurrPlaylist() string {
+func (m *Model) GetCurrPlaylist() string {
 	return m.currentPlaylist
 }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
@@ -119,12 +138,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch m.mode {
 		case DEFAULT:
 			switch msg.String() {
-			case "esc":
-				if m.table.Focused() {
-					m.table.Blur()
-				} else {
-					m.table.Focus()
-				}
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			case "enter":
@@ -134,6 +147,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case CHOOSE:
 			switch msg.String() {
+			case "esc":
+				m.mode = DEFAULT
+				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
 			case "enter":
 				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
 				m.currentPlaylist = m.choosePlaylist.CurrPlaylist()
@@ -141,11 +157,23 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return m, nil
 			default:
 				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
+
+			}
+		case CREATE:
+			switch msg.String() {
+			case "esc":
+				m.mode = DEFAULT
+			case "enter":
+				m.createPlaylist, cmd = m.createPlaylist.Update(msg)
+				m.mode = DEFAULT
+				m.choosePlaylist.UpdatePlaylist()
+			default:
+				m.createPlaylist, cmd = m.createPlaylist.Update(msg)
 			}
 
 		}
 
 	}
-
+	m.table, cmd = m.table.Update(msg)
 	return m, cmd
 }
