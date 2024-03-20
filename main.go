@@ -46,7 +46,6 @@ const (
 
 type model struct {
 	mode             Mode
-	cursor           int
 	focusedWindowIdx Windows
 	state            *state.State
 
@@ -72,16 +71,16 @@ func initialModel() model {
 	player := player.DefaultPlaylist(state)
 
 	return model{
-		mode:        NORMAL,
-		playlist:    playlistsTable,
-		cursor:      0,
-		searchSong:  searchsong.DefaultSearchSong(state),
-		songs:       songs,
-		player:      player,
-		state:       state,
-		Scheduler:   time.NewTicker(debounceTime),
-		SongPlaying: true,
-		err:         "",
+		mode:             NORMAL,
+		playlist:         playlistsTable,
+		focusedWindowIdx: PLAYLISTS,
+		searchSong:       searchsong.DefaultSearchSong(state),
+		songs:            songs,
+		player:           player,
+		state:            state,
+		Scheduler:        time.NewTicker(debounceTime),
+		SongPlaying:      true,
+		err:              "",
 	}
 }
 
@@ -153,15 +152,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "left":
-			if m.cursor > 0 {
-				m.cursor--
-				m.focusedWindowIdx = Windows(m.cursor)
+			if m.focusedWindowIdx > 0 {
+				m.focusedWindowIdx--
 				m.SwitchFocus()
 			}
 		case "right":
-			if m.cursor < 3 {
-				m.cursor++
-				m.focusedWindowIdx = Windows(m.cursor)
+			if m.focusedWindowIdx < 3 {
+				m.focusedWindowIdx++
 				m.SwitchFocus()
 			}
 
@@ -262,7 +259,7 @@ func mergeViewsInRow(view1, view2 string) string {
 func (m model) View() string {
 	s := "\n deeez player \n\n"
 	s += fmt.Sprintf(
-		"%s\n%s\n%s\n%s %d %d %d %s",
+		"%s\n%s\n%s\n%s %d %d %s",
 		mergeViewsInRow(
 			m.playlist.View(),
 			m.searchSong.View(),
@@ -270,7 +267,6 @@ func (m model) View() string {
 		m.err,
 		m.songs.View(),
 		m.player.View(),
-		m.cursor,
 		m.focusedWindowIdx,
 		m.mode,
 		m.state.CurrentPlaylist,
