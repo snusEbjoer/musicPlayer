@@ -80,6 +80,26 @@ func initialModel() model {
 	}
 }
 
+<<<<<<< Updated upstream
+=======
+func (m *model) StartSong() {
+	f, err := os.Open("./playlists/dir/" + m.state.CurrentPlaylist + "/" + m.state.CurrentSong)
+	if err != nil {
+		log.Fatal(err)
+	}
+	streamer, _, err := mp3.Decode(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	speaker.Lock()
+	ctrl.Streamer = streamer
+	ctrl.Paused = false
+	speaker.Unlock()
+	speaker.Clear()
+	speaker.Play(&ctrl)
+}
+
+>>>>>>> Stashed changes
 func (m *model) SwitchFocus() {
 	switch m.focusedWindowIdx {
 	case PLAYLISTS:
@@ -102,7 +122,6 @@ func (m *model) FocusTable() {
 	case SONGS:
 		m.songs.Focus()
 	}
-
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -187,7 +206,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Scheduler.Reset(debounceTime)
 			case "enter":
 				m.SongPlaying = true
+<<<<<<< Updated upstream
 				m.player, cmd = m.player.Update(msg)
+=======
+			case " ":
+				speaker.Lock()
+				ctrl.Paused = !ctrl.Paused
+				speaker.Unlock()
+>>>>>>> Stashed changes
 			default:
 				m.player, cmd = m.player.Update(msg)
 
