@@ -125,7 +125,7 @@ func (m Model) Update(msg tea.Msg, currentPlaylist string) (Model, tea.Cmd) {
 						pl := youtube.C{}
 						options, err := pl.Search(m.query)
 						if err != nil {
-							return m, tea.Quit
+							log.Fatal(err)
 						}
 						if len(options) == 0 {
 							m.table.SetRows([]table.Row{{"No results, press ESC to go back."}})

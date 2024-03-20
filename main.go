@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"main/auth"
 	PlaylistsTable "main/models/Playlists"
 	"main/models/SearchSong"
 	"main/models/Songs"
@@ -16,14 +17,18 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 )
 
+var _ = speaker.Init(44100, 4410)
+var ctrl = beep.Ctrl{}
+
 var m = initialModel()
 var program = tea.NewProgram(m)
 
-const debounceTime = 200 * time.Millisecond
+const debounceTime = 300 * time.Millisecond
 
 type Mode int
 type Windows int
@@ -80,6 +85,22 @@ func initialModel() model {
 	}
 }
 
+func (m *model) StartSong() {
+	f, err := os.Open("./playlists/dir/" + m.state.CurrentPlaylist + "/" + m.state.CurrentSong)
+	if err != nil {
+		log.Fatal(err)
+	}
+	streamer, _, err := mp3.Decode(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	speaker.Lock()
+	ctrl.Streamer = streamer
+	speaker.Unlock()
+	speaker.Clear()
+	speaker.Play(&ctrl)
+}
+
 func (m *model) SwitchFocus() {
 	switch m.focusedWindowIdx {
 	case PLAYLISTS:
@@ -110,8 +131,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.TryPlaySound:
 		if !m.SongPlaying {
-			m.player.EndSong()
-			go m.player.PlaySong()
+			m.StartSong()
 			m.SongPlaying = true
 		}
 	case messages.SongsUpdated:
@@ -186,8 +206,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.SongPlaying = false
 				m.Scheduler.Reset(debounceTime)
 			case "enter":
+				m.StartSong()
 				m.SongPlaying = true
-				m.player, cmd = m.player.Update(msg)
 			default:
 				m.player, cmd = m.player.Update(msg)
 
@@ -254,7 +274,19 @@ func (m model) View() string {
 	return s
 }
 
+func EnsureToken() {
+	_, err := os.Stat("token.json")
+	if os.IsNotExist(err) {
+		a := auth.C{}
+		err := a.FetchToken()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
 func main() {
+	EnsureToken()
 	go func() {
 		for _ = range m.Scheduler.C {
 			program.Send(messages.TryPlaySound(true))
@@ -263,24 +295,4 @@ func main() {
 	if _, err := program.Run(); err != nil {
 		log.Fatalf("ASASA, there's been an error: %v", err)
 	}
-}
-
-func (m *model) PlaySong(songName string) error {
-	f, err := os.Open("./playlists/dir/" + m.state.CurrentPlaylist + "/" + songName)
-	if err != nil {
-		return err
-	}
-	streamer, format, err := mp3.Decode(f)
-	if err != nil {
-		return err
-	}
-	err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-	if err != nil {
-		return err
-	}
-	speaker.Lock()
-	go speaker.Play(streamer)
-	defer speaker.Unlock()
-	defer streamer.Close()
-	return nil
 }
