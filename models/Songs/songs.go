@@ -3,6 +3,7 @@ package Songs
 import (
 	"fmt"
 	"log"
+	"main/models/messages"
 	"main/playlists"
 	"main/state"
 	"os"
@@ -13,8 +14,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/faiface/beep/mp3"
 )
-
-type SongsUpdatedMsg bool
 
 type Model struct {
 	table       table.Model
@@ -140,7 +139,7 @@ func (m *Model) PrevSong() {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case SongsUpdatedMsg:
+	case messages.SongsUpdated:
 		rows, err := m.state.SongsWithDuration()
 		if err != nil {
 			log.Fatal(err)

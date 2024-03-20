@@ -4,7 +4,7 @@ import (
 	"fmt"
 	ChoosePlaylist "main/models/ChoosePlaylist"
 	"main/models/CreatePlaylist"
-	"main/models/Songs"
+	"main/models/messages"
 	"main/playlists"
 	"main/state"
 
@@ -118,9 +118,9 @@ func (m Model) View() string {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case Songs.SongsUpdatedMsg:
+	case messages.SongsUpdated:
 		return m, func() tea.Msg {
-			return Songs.SongsUpdatedMsg(true)
+			return messages.SongsUpdated(true)
 		}
 	case tea.KeyMsg:
 		switch m.mode {
