@@ -11,12 +11,12 @@ import (
 	"main/models/player"
 	"main/state"
 	"main/youtube"
-	"math"
 	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
@@ -235,31 +235,12 @@ func MaxRowLength(rows []string) int {
 	return max
 }
 
-func mergeViewsInRow(view1, view2 string) string {
-	var sb strings.Builder
-	rows1 := strings.Split(view1, "\n")
-	rows2 := strings.Split(view2, "\n")
-	maxLen := math.Max(float64(len(rows1)), float64(len(rows2)))
-	maxRowLen := MaxRowLength(rows1)
-	for i := 0; i < int(maxLen); i++ {
-		if i < len(rows1) {
-			sb.WriteString(rows1[i])
-		} else {
-			sb.WriteString(strings.Repeat(" ", maxRowLen))
-		}
-		if i < len(rows2) {
-			sb.WriteString(rows2[i])
-		}
-		sb.WriteString("\n")
-	}
-	return sb.String()
-}
-
 func (m model) View() string {
 	s := "\n deeez player \n\n"
 	s += fmt.Sprintf(
 		"%s\n%s\n%s\n%s %d %d %s",
-		mergeViewsInRow(
+		lipgloss.JoinHorizontal(
+			lipgloss.Left,
 			m.playlist.View(),
 			m.searchSong.View(),
 		),
