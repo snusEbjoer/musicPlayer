@@ -112,11 +112,11 @@ func (m *Model) NextSong() {
 	for i := range m.state.SongList {
 		if m.state.SongList[i] == m.state.CurrentSong {
 			if i == len(m.state.SongList)-1 {
-				m.table.SetCursor(0)
+				m.table.GotoTop()
 				m.state.CurrentSong = m.state.SongList[0]
 				break
 			}
-			m.table.SetCursor(i + 1)
+			m.table.MoveDown(1)
 			m.state.CurrentSong = m.state.SongList[i+1]
 			break
 		}
@@ -126,11 +126,11 @@ func (m *Model) PrevSong() {
 	for i := range m.state.SongList {
 		if m.state.SongList[i] == m.state.CurrentSong {
 			if i == 0 {
-				m.table.SetCursor(len(m.state.SongList) - 1)
+				m.table.GotoBottom()
 				m.state.CurrentSong = m.state.SongList[len(m.state.SongList)-1]
 				break
 			}
-			m.table.SetCursor(i - 1)
+			m.table.MoveUp(1)
 			m.state.CurrentSong = m.state.SongList[i-1]
 			break
 		}
