@@ -6,6 +6,7 @@ import (
 	PlaylistsTable "main/models/Playlists"
 	"main/models/SearchSong"
 	"main/models/Songs"
+	"main/models/messages"
 	"main/models/player"
 	"main/state"
 	"main/youtube"
@@ -21,6 +22,8 @@ import (
 
 var program = tea.NewProgram(initialModel())
 
+const debounceTime = 200 * time.Millisecond
+
 type Mode int
 type Windows int
 
@@ -35,18 +38,17 @@ const (
 	INPUT
 )
 
-type SongsUpdatedMsg bool
-
 type model struct {
 	mode             Mode
 	cursor           int
 	focusedWindowIdx Windows
 	state            *state.State
 
-	searchSong searchsong.Model
-	playlist   PlaylistsTable.Model
-	songs      Songs.Model
-	player     player.Model
+	searchSong       searchsong.Model
+	playlist         PlaylistsTable.Model
+	songs            Songs.Model
+	player           player.Model
+	songChangeLocked bool
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -100,9 +102,11 @@ func (m *model) FocusTable() {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case Songs.SongsUpdatedMsg:
+	case messages.UnlockControl:
+		m.songChangeLocked = false
+	case messages.SongsUpdated:
 		m.state.UpdateSongs()
-		m.songs, _ = m.songs.Update(Songs.SongsUpdatedMsg(true))
+		m.songs, _ = m.songs.Update(messages.SongsUpdated(true))
 		return m, nil
 	case searchsong.DownloadMessage:
 		{
@@ -113,7 +117,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			go func() {
 				yt.Download(dlUrl.DownloadUrl, msg.Option.Title, m.state.CurrentPlaylist)
-				program.Send(Songs.SongsUpdatedMsg(true))
+				program.Send(messages.SongsUpdated(true))
 			}()
 		}
 	case tea.KeyMsg:
@@ -164,13 +168,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case PLAYER:
 			switch msg.String() {
 			case "alt+right":
-				m.songs.NextSong()
-				m.player.EndSong()
-				go m.player.PlaySong()
+				if !m.songChangeLocked {
+					m.songs.NextSong()
+					m.player.EndSong()
+					go m.player.PlaySong()
+					m.songChangeLocked = true
+					return m, tea.Tick(debounceTime, func(time.Time) tea.Msg {
+						return messages.UnlockControl(true)
+					})
+				}
 			case "alt+left":
-				m.songs.PrevSong()
-				m.player.EndSong()
-				go m.player.PlaySong()
+				if !m.songChangeLocked {
+					m.songs.PrevSong()
+					m.player.EndSong()
+					go m.player.PlaySong()
+					m.songChangeLocked = true
+					return m, tea.Tick(debounceTime, func(time.Time) tea.Msg {
+						return messages.UnlockControl(true)
+					})
+				}
 			default:
 				m.player, cmd = m.player.Update(msg)
 			}
@@ -178,10 +194,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, cmd
-}
-
-func SendUpdatedMsg() {
-	program.Send(SongsUpdatedMsg(true))
 }
 
 func NormalizeRight(s string, l int) string {
