@@ -3,7 +3,7 @@ package ChoosePlaylist
 import (
 	"fmt"
 	"log"
-	"main/models/Songs"
+	"main/models/messages"
 	"main/playlists"
 	"main/state"
 
@@ -114,7 +114,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.state.CurrentPlaylist = m.table.SelectedRow()[0]
 				m.state.UpdateSongs()
 				return m, func() tea.Msg {
-					return Songs.SongsUpdatedMsg(true)
+					return messages.SongsUpdated(true)
 				}
 			}
 		}

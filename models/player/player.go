@@ -20,10 +20,6 @@ const (
 	REPEAT
 )
 
-const debounce = 500 * time.Millisecond
-
-type tickMsg = int
-
 type Model struct {
 	mode           Modes
 	choosePlaylist ChoosePlaylist.Model
@@ -92,35 +88,14 @@ func (m *Model) PlaySong() error {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case tickMsg:
-		m.controlLocked = false
-		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "enter":
-			go m.EndSong()
+			m.EndSong()
 			go m.PlaySong()
-		case "alt+right":
-			if !m.controlLocked {
-				m.EndSong()
-				go m.PlaySong()
-				m.controlLocked = true
-				return m, tea.Tick(debounce, func(time.Time) tea.Msg {
-					return tickMsg(0)
-				})
-			}
-		case "alt+left":
-			if !m.controlLocked {
-				m.EndSong()
-				go m.PlaySong()
-				m.controlLocked = true
-				return m, tea.Tick(debounce, func(time.Time) tea.Msg {
-					return tickMsg(0)
-				})
-			}
 		default:
 		}
 	}
