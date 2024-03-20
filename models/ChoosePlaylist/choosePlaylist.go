@@ -34,8 +34,7 @@ func (m Model) Init() tea.Cmd { return nil }
 
 func DefaultPlaylist(state *state.State) Model {
 	columns := []table.Column{{Title: "Choose playlist", Width: 30}}
-	pl := playlists.P{}
-	pls, err := pl.ShowAllPlaylists()
+	pls, err := playlists.ShowAllPlaylists()
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -84,8 +83,7 @@ func (m Model) View() string {
 	return baseStyle.Render(m.table.View()) + "m.currentPlaylist"
 }
 func (m *Model) UpdatePlaylist() {
-	pl := playlists.P{}
-	pls, err := pl.ShowAllPlaylists()
+	pls, err := playlists.ShowAllPlaylists()
 	if err != nil {
 		log.Fatal(err)
 	}

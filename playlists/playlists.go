@@ -13,13 +13,11 @@ type Playlists interface {
 	ShowSongsInPlaylist(name string)
 }
 
-type P struct{}
-
-func (p *P) CreatePlaylist(name string) {
+func CreatePlaylist(name string) {
 
 	os.MkdirAll("./playlists/dir/"+name, os.ModePerm)
 }
-func (p *P) ShowAllPlaylists() ([]string, error) {
+func ShowAllPlaylists() ([]string, error) {
 	files, err := os.ReadDir("./playlists/dir/")
 	if err != nil {
 		return nil, err
@@ -31,7 +29,7 @@ func (p *P) ShowAllPlaylists() ([]string, error) {
 	return res, nil
 }
 
-func (p *P) ShowAllSongs(name string) ([]string, error) {
+func ShowAllSongs(name string) ([]string, error) {
 	songs, err := os.ReadDir("./playlists/dir/" + name)
 	if err != nil {
 		return nil, err
@@ -45,7 +43,7 @@ func (p *P) ShowAllSongs(name string) ([]string, error) {
 	}
 	return res, nil
 }
-func (p *P) GetDefaultPlaylist() (string, error) {
+func GetDefaultPlaylist() (string, error) {
 	files, err := os.ReadDir("./playlists/dir")
 	if len(files) == 0 {
 		return "", nil
