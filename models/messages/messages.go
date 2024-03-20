@@ -1,4 +1,4 @@
 package messages
 
-type UnlockControl bool
 type SongsUpdated bool
+type TryPlaySound bool

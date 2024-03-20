@@ -20,7 +20,8 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
-var program = tea.NewProgram(initialModel())
+var m = initialModel()
+var program = tea.NewProgram(m)
 
 const debounceTime = 200 * time.Millisecond
 
@@ -44,11 +45,13 @@ type model struct {
 	focusedWindowIdx Windows
 	state            *state.State
 
-	searchSong       searchsong.Model
-	playlist         PlaylistsTable.Model
-	songs            Songs.Model
-	player           player.Model
-	songChangeLocked bool
+	searchSong  searchsong.Model
+	playlist    PlaylistsTable.Model
+	songs       Songs.Model
+	player      player.Model
+	Scheduler   *time.Ticker
+	SongPlaying bool
+	err         string
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -64,13 +67,16 @@ func initialModel() model {
 	player := player.DefaultPlaylist(state)
 
 	return model{
-		mode:       NORMAL,
-		playlist:   playlistsTable,
-		cursor:     0,
-		searchSong: searchsong.DefaultSearchSong(state),
-		songs:      songs,
-		player:     player,
-		state:      state,
+		mode:        NORMAL,
+		playlist:    playlistsTable,
+		cursor:      0,
+		searchSong:  searchsong.DefaultSearchSong(state),
+		songs:       songs,
+		player:      player,
+		state:       state,
+		Scheduler:   time.NewTicker(debounceTime),
+		SongPlaying: true,
+		err:         "",
 	}
 }
 
@@ -102,8 +108,12 @@ func (m *model) FocusTable() {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case messages.UnlockControl:
-		m.songChangeLocked = false
+	case messages.TryPlaySound:
+		if !m.SongPlaying {
+			m.player.EndSong()
+			go m.player.PlaySong()
+			m.SongPlaying = true
+		}
 	case messages.SongsUpdated:
 		m.state.UpdateSongs()
 		m.songs, _ = m.songs.Update(messages.SongsUpdated(true))
@@ -168,27 +178,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case PLAYER:
 			switch msg.String() {
 			case "alt+right":
-				if !m.songChangeLocked {
-					m.songs.NextSong()
-					m.player.EndSong()
-					go m.player.PlaySong()
-					m.songChangeLocked = true
-					return m, tea.Tick(debounceTime, func(time.Time) tea.Msg {
-						return messages.UnlockControl(true)
-					})
-				}
+				m.songs.NextSong()
+				m.SongPlaying = false
+				m.Scheduler.Reset(debounceTime)
 			case "alt+left":
-				if !m.songChangeLocked {
-					m.songs.PrevSong()
-					m.player.EndSong()
-					go m.player.PlaySong()
-					m.songChangeLocked = true
-					return m, tea.Tick(debounceTime, func(time.Time) tea.Msg {
-						return messages.UnlockControl(true)
-					})
-				}
+				m.songs.PrevSong()
+				m.SongPlaying = false
+				m.Scheduler.Reset(debounceTime)
+			case "enter":
+				m.SongPlaying = true
+				m.player, cmd = m.player.Update(msg)
 			default:
 				m.player, cmd = m.player.Update(msg)
+
 			}
 
 		}
@@ -236,11 +238,12 @@ func mergeViewsInRow(view1, view2 string) string {
 func (m model) View() string {
 	s := "\n deeez player \n\n"
 	s += fmt.Sprintf(
-		"%s\n%s\n%s %d %d %d %s",
+		"%s\n%s\n%s\n%s %d %d %d %s",
 		mergeViewsInRow(
 			m.playlist.View(),
 			m.searchSong.View(),
 		),
+		m.err,
 		m.songs.View(),
 		m.player.View(),
 		m.cursor,
@@ -252,6 +255,11 @@ func (m model) View() string {
 }
 
 func main() {
+	go func() {
+		for _ = range m.Scheduler.C {
+			program.Send(messages.TryPlaySound(true))
+		}
+	}()
 	if _, err := program.Run(); err != nil {
 		log.Fatalf("ASASA, there's been an error: %v", err)
 	}
