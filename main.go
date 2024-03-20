@@ -172,7 +172,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case "enter":
 				m.playlist, cmd = m.playlist.Update(msg)
-				m.songs.SetCurrPlaylist(m.state.CurrentPlaylist)
 			default:
 				m.playlist, cmd = m.playlist.Update(msg)
 				return m, cmd

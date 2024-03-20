@@ -1,18 +1,13 @@
 package Songs
 
 import (
-	"fmt"
 	"log"
 	"main/models/messages"
-	"main/playlists"
 	"main/state"
-	"os"
-	"time"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/faiface/beep/mp3"
 )
 
 type Model struct {
@@ -88,23 +83,6 @@ func (m *Model) WindowKey() state.ProgramWindow {
 	return state.SONGS
 }
 
-func (m *Model) SetCurrPlaylist(newPlaylist string) {
-	m.state.CurrentPlaylist = newPlaylist
-	pl := playlists.P{}
-	songs, _ := pl.ShowAllSongs(newPlaylist)
-	var rows []table.Row
-	for _, song := range songs {
-		f, err := os.Open("./playlists/dir/" + m.state.CurrentPlaylist + "/" + song)
-		streamer, format, err := mp3.Decode(f)
-		if err != nil {
-			fmt.Println(err)
-		}
-		rows = append(rows, table.Row{song, format.SampleRate.D(streamer.Len()).Round(time.Second).String()})
-		streamer.Close()
-		f.Close()
-	}
-	m.table.SetRows(rows)
-}
 func (m *Model) SetCurrentSong(song string) {
 	m.state.CurrentSong = song
 }

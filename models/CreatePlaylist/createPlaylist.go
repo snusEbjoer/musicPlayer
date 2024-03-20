@@ -83,12 +83,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.table.Focus()
 			}
 		case "enter":
-			pl := playlists.P{}
 			plName := m.textInput.Value()
 			if len(plName) == 0 {
 				return m, cmd
 			}
-			pl.CreatePlaylist(plName)
+			playlists.CreatePlaylist(plName)
 		default:
 			m.textInput, cmd = m.textInput.Update(msg)
 			m.table.SetRows([]table.Row{{m.textInput.View()}})

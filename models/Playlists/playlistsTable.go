@@ -1,11 +1,9 @@
 package PlaylistsTable
 
 import (
-	"fmt"
 	ChoosePlaylist "main/models/ChoosePlaylist"
 	"main/models/CreatePlaylist"
 	"main/models/messages"
-	"main/playlists"
 	"main/state"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -45,7 +43,6 @@ func (m *Model) Focused() bool {
 	return m.table.Focused()
 }
 func DefaultPlaylist(state *state.State) Model {
-	pl := playlists.P{}
 	columns := []table.Column{{Title: "Playlists", Width: 30}}
 	rows := []table.Row{{"Create playlist"}, {"Choose playlist"}}
 	t := table.New(
@@ -73,11 +70,6 @@ func DefaultPlaylist(state *state.State) Model {
 	t.SetStyles(s)
 	choosePlaylist := ChoosePlaylist.DefaultPlaylist(state)
 	createPlaylist := CreatePlaylist.DefaultPlaylist(state)
-	currPls, err := pl.GetDefaultPlaylist()
-	if err != nil {
-		currPls = ""
-	}
-	fmt.Println(currPls)
 	return Model{
 		table:          t,
 		defaultRows:    rows,
