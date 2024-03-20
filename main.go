@@ -96,6 +96,7 @@ func (m *model) StartSong() {
 	}
 	speaker.Lock()
 	ctrl.Streamer = streamer
+	ctrl.Paused = false
 	speaker.Unlock()
 	speaker.Clear()
 	speaker.Play(&ctrl)
@@ -123,7 +124,6 @@ func (m *model) FocusTable() {
 	case SONGS:
 		m.songs.Focus()
 	}
-
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -208,6 +208,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.StartSong()
 				m.SongPlaying = true
+			case " ":
+				speaker.Lock()
+				ctrl.Paused = !ctrl.Paused
+				speaker.Unlock()
 			default:
 				m.player, cmd = m.player.Update(msg)
 
