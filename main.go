@@ -18,12 +18,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/faiface/beep"
+	"github.com/faiface/beep/effects"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 )
 
 var _ = speaker.Init(44100, 4410)
 var ctrl = beep.Ctrl{}
+var volume = effects.Volume{Base: 2, Volume: 0}
 
 var m = initialModel()
 var program = tea.NewProgram(m)
@@ -98,8 +100,9 @@ func (m *model) StartSong() {
 	ctrl.Paused = false
 	m.state.Streamer = streamer
 	speaker.Unlock()
+	volume.Streamer = &ctrl
 	speaker.Clear()
-	speaker.Play(&ctrl)
+	speaker.Play(&volume)
 }
 
 func (m *model) SwitchFocus() {
@@ -230,6 +233,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case " ":
 				speaker.Lock()
 				ctrl.Paused = !ctrl.Paused
+				speaker.Unlock()
+			case "down":
+				speaker.Lock()
+				volume.Volume -= 0.1
+				speaker.Unlock()
+			case "up":
+				speaker.Lock()
+				volume.Volume += 0.1
 				speaker.Unlock()
 			default:
 				m.player, cmd = m.player.Update(msg)
