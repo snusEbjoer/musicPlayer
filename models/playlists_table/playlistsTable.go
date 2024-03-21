@@ -1,8 +1,8 @@
 package PlaylistsTable
 
 import (
-	ChoosePlaylist "main/models/ChoosePlaylist"
-	"main/models/CreatePlaylist"
+	"main/models/choose_playlist"
+	"main/models/create_playlist"
 	"main/models/messages"
 	"main/state"
 
@@ -23,9 +23,9 @@ type Model struct {
 	table          table.Model
 	defaultRows    []table.Row
 	mode           Modes
-	choosePlaylist ChoosePlaylist.Model
+	choosePlaylist chooseplaylist.Model
 	styles         lipgloss.Style
-	createPlaylist CreatePlaylist.Model
+	createPlaylist createplaylist.Model
 	state          *state.State
 }
 
@@ -42,7 +42,7 @@ func (m *Model) Focused() bool {
 
 	return m.table.Focused()
 }
-func DefaultPlaylist(state *state.State) Model {
+func New(state *state.State) Model {
 	columns := []table.Column{{Title: "Playlists", Width: 30}}
 	rows := []table.Row{{"Create playlist"}, {"Choose playlist"}}
 	t := table.New(
@@ -68,8 +68,8 @@ func DefaultPlaylist(state *state.State) Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	choosePlaylist := ChoosePlaylist.DefaultPlaylist(state)
-	createPlaylist := CreatePlaylist.DefaultPlaylist(state)
+	choosePlaylist := chooseplaylist.New(state)
+	createPlaylist := createplaylist.New(state)
 	return Model{
 		table:          t,
 		defaultRows:    rows,

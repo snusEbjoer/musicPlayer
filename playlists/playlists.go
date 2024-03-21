@@ -4,15 +4,6 @@ import (
 	"os"
 )
 
-type Playlists interface {
-	CreatePlaylist()
-	AddSongToPlaylist()
-	DeletePlaylist()
-	DeleteFromPlaylist()
-	ShowAllPlaylists()
-	ShowSongsInPlaylist(name string)
-}
-
 func CreatePlaylist(name string) {
 
 	os.MkdirAll("./playlists/dir/"+name, os.ModePerm)
