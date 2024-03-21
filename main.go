@@ -247,9 +247,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, cmd
 }
-
+func (m *model) currPlaylistView() string {
+	if m.state.CurrentPlaylist == "" {
+		return "Create playlist than choose"
+	}
+	return m.state.CurrentPlaylist
+}
 func (m model) View() string {
-	s := "\ndeeez player\n" + fmt.Sprintf("Current playlist: %s\n", m.state.CurrentPlaylist)
+	if m.state.CurrentPlaylist == "" {
+
+	}
+	s := "\ndeeez player\n" + fmt.Sprintf("Current playlist: %s\n", m.currPlaylistView())
 	s += fmt.Sprintf(
 		"%s\n%s\n%s\n%s",
 		lipgloss.JoinHorizontal(

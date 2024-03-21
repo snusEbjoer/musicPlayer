@@ -23,7 +23,11 @@ const (
 )
 
 func getCurrentPlaylist() string {
-	files, _ := os.ReadDir("./playlists/dir")
+	files, err := os.ReadDir("./playlists/dir")
+	if err != nil {
+		os.Mkdir("./playlists/dir", os.ModePerm)
+		return ""
+	}
 	if len(files) == 0 {
 		return ""
 	} else {
@@ -59,9 +63,9 @@ func (s *State) Unlock() {
 }
 
 func (s *State) UpdateSongs() error {
-	if s.CurrentPlaylist == "" {
-		return fmt.Errorf("no playlist selected")
-	}
+	//if s.CurrentPlaylist == "" {
+	//	return fmt.Errorf("no playlist selected")
+	//}
 	files, err := os.ReadDir(fmt.Sprintf("./playlists/dir/%s", s.CurrentPlaylist))
 	if err != nil {
 		return err

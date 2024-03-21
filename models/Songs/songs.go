@@ -4,6 +4,7 @@ import (
 	"log"
 	"main/models/messages"
 	"main/state"
+	"os"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
@@ -133,6 +134,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "delete":
+			os.Remove("./playlists/dir/" + m.state.CurrentPlaylist + "/" + m.table.SelectedRow()[0])
+			m.NextSong()
+			return m, func() tea.Msg {
+				return messages.SongsUpdated(true)
+			}
 		case "enter":
 			m.state.CurrentSong = m.table.SelectedRow()[0]
 		}
