@@ -2,6 +2,7 @@ package player
 
 import (
 	ChoosePlaylist "main/models/ChoosePlaylist"
+	"main/models/messages"
 	"main/state"
 	"os"
 	"time"
@@ -88,6 +89,8 @@ func (m *Model) PlaySong() error {
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case messages.SongsUpdated:
+		m.state.CurrentSong = m.state.SongList[0]
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":

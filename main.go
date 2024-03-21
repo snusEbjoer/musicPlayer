@@ -136,6 +136,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.SongsUpdated:
 		m.state.UpdateSongs()
 		m.songs, _ = m.songs.Update(messages.SongsUpdated(true))
+		m.player, cmd = m.player.Update(messages.SongsUpdated(true))
 		return m, nil
 	case searchsong.DownloadMessage:
 		{
