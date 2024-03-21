@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"github.com/faiface/beep"
 	"os"
 	"sync"
 	"time"
@@ -36,9 +37,10 @@ type State struct {
 	CurrentWindow   ProgramWindow
 	SongList        []string
 	mx              sync.Mutex
+	Streamer        beep.StreamSeekCloser
 }
 
-func New() *State {
+func New(ctrl *beep.Ctrl) *State {
 	return &State{
 		CurrentPlaylist: getCurrentPlaylist(),
 		CurrentSong:     "",

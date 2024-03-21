@@ -61,7 +61,7 @@ type model struct {
 func (m model) Init() tea.Cmd { return nil }
 
 func initialModel() model {
-	state := state.New()
+	state := state.New(&ctrl)
 	playlistsTable := PlaylistsTable.DefaultPlaylist(state)
 	err := state.UpdateSongs()
 	if err != nil {
@@ -96,6 +96,7 @@ func (m *model) StartSong() {
 	speaker.Lock()
 	ctrl.Streamer = streamer
 	ctrl.Paused = false
+	m.state.Streamer = streamer
 	speaker.Unlock()
 	speaker.Clear()
 	speaker.Play(&ctrl)
@@ -124,10 +125,31 @@ func (m *model) FocusTable() {
 		m.songs.Focus()
 	}
 }
-
+func (m *model) SetNextSong() {
+	if len(m.state.SongList) == 1 {
+		m.state.CurrentSong = m.state.SongList[0]
+		return
+	}
+	for i := range m.state.SongList {
+		if m.state.SongList[i] == m.state.CurrentSong {
+			m.state.CurrentSong = m.state.SongList[i+1]
+			return
+		}
+		if m.state.CurrentSong == m.state.SongList[len(m.state.SongList)-1] {
+			m.state.CurrentSong = m.state.SongList[0]
+			return
+		}
+	}
+}
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case messages.SongEnded:
+		m.SongPlaying = false
+		m.SetNextSong()
+		m.StartSong()
+		m.SongPlaying = true
+		m.songs, cmd = m.songs.Update(messages.SongEnded(true))
 	case messages.TryPlaySound:
 		if !m.SongPlaying {
 			m.StartSong()
@@ -214,6 +236,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			}
 
+		}
+	}
+	if m.state.Streamer == nil {
+		return m, cmd
+	}
+	if m.state.Streamer.Position() == m.state.Streamer.Len() {
+		//log.Fatal("event send")
+		return m, func() tea.Msg {
+			return messages.SongEnded(true)
 		}
 	}
 	return m, cmd

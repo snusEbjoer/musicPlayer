@@ -123,6 +123,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			log.Fatal(err)
 		}
 		m.table.SetRows(rows)
+	case messages.SongEnded:
+		for i := range m.state.SongList {
+			if m.state.SongList[i] == m.state.CurrentSong {
+				if i == len(m.state.SongList)-1 {
+					m.table.GotoTop()
+					break
+				}
+				m.table.MoveDown(1)
+				break
+			}
+		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
