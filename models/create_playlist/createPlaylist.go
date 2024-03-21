@@ -1,7 +1,7 @@
-package CreatePlaylist
+package createplaylist
 
 import (
-	"main/models/ChoosePlaylist"
+	"main/models/choose_playlist"
 	"main/playlists"
 	"main/state"
 
@@ -17,7 +17,7 @@ type Model struct {
 	table          table.Model
 	textInput      textinput.Model
 	defaultRows    []table.Row
-	choosePlaylist ChoosePlaylist.Model
+	choosePlaylist chooseplaylist.Model
 	state          *state.State
 }
 
@@ -26,7 +26,7 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 func (m Model) Init() tea.Cmd { return textinput.Blink }
-func DefaultPlaylist(state *state.State) Model {
+func New(state *state.State) Model {
 	columns := []table.Column{{Title: "Create playlist", Width: 30}}
 	ti := textinput.New()
 	ti.Placeholder = "Create playlist"
@@ -53,7 +53,7 @@ func DefaultPlaylist(state *state.State) Model {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	choosePlaylist := ChoosePlaylist.DefaultPlaylist(state)
+	choosePlaylist := chooseplaylist.New(state)
 	return Model{table: t, defaultRows: rows, textInput: ti, choosePlaylist: choosePlaylist, state: state}
 }
 

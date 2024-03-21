@@ -3,8 +3,7 @@ package searchsong
 import (
 	"fmt"
 	"log"
-	// "log"
-	PlaylistsTable "main/models/Playlists"
+	"main/models/playlists_table"
 	"main/state"
 	"main/youtube"
 
@@ -52,7 +51,7 @@ func (m *Model) Blur() {
 func (m *Model) Focused() bool {
 	return m.table.Focused()
 }
-func DefaultSearchSong(state *state.State) Model {
+func New(state *state.State) Model {
 	columns := []table.Column{{Title: "Search song", Width: 50}}
 
 	ti := textinput.New()

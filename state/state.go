@@ -40,7 +40,7 @@ type State struct {
 	Streamer        beep.StreamSeekCloser
 }
 
-func New(ctrl *beep.Ctrl) *State {
+func New() *State {
 	return &State{
 		CurrentPlaylist: getCurrentPlaylist(),
 		CurrentSong:     "",

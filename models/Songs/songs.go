@@ -1,4 +1,4 @@
-package Songs
+package songs
 
 import (
 	"log"
@@ -34,7 +34,7 @@ func (m *Model) Focused() bool {
 	return m.table.Focused()
 }
 
-func DefaultSongs(state *state.State) (Model, error) {
+func New(state *state.State) (Model, error) {
 	columns := []table.Column{{Title: "Songs", Width: 50}, {Title: "", Width: 5}}
 	rows, err := state.SongsWithDuration()
 	if err != nil {
@@ -123,17 +123,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			log.Fatal(err)
 		}
 		m.table.SetRows(rows)
-	case messages.SongEnded:
-		for i := range m.state.SongList {
-			if m.state.SongList[i] == m.state.CurrentSong {
-				if i == len(m.state.SongList)-1 {
-					m.table.GotoTop()
-					break
-				}
-				m.table.MoveDown(1)
-				break
-			}
-		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":

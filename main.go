@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"log"
 	"main/auth"
-	PlaylistsTable "main/models/Playlists"
-	"main/models/SearchSong"
-	"main/models/Songs"
 	"main/models/messages"
 	"main/models/player"
+	"main/models/playlists_table"
+	"main/models/search_song"
+	"main/models/songs"
 	"main/state"
 	"main/youtube"
 	"os"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -53,7 +52,7 @@ type model struct {
 
 	searchSong  searchsong.Model
 	playlist    PlaylistsTable.Model
-	songs       Songs.Model
+	songs       songs.Model
 	player      player.Model
 	Scheduler   *time.Ticker
 	SongPlaying bool
@@ -63,20 +62,20 @@ type model struct {
 func (m model) Init() tea.Cmd { return nil }
 
 func initialModel() model {
-	state := state.New(&ctrl)
-	playlistsTable := PlaylistsTable.DefaultPlaylist(state)
+	state := state.New()
+	playlistsTable := PlaylistsTable.New(state)
 	err := state.UpdateSongs()
 	if err != nil {
 		log.Fatal(err)
 	}
-	songs, _ := Songs.DefaultSongs(state)
-	player := player.DefaultPlaylist(state)
+	songs, _ := songs.New(state)
+	player := player.New(state)
 
 	return model{
 		mode:             NORMAL,
 		playlist:         playlistsTable,
 		focusedWindowIdx: PLAYLISTS,
-		searchSong:       searchsong.DefaultSearchSong(state),
+		searchSong:       searchsong.New(state),
 		songs:            songs,
 		player:           player,
 		state:            state,
@@ -147,12 +146,6 @@ func (m *model) SetNextSong() {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case messages.SongEnded:
-		m.SongPlaying = false
-		m.SetNextSong()
-		m.StartSong()
-		m.SongPlaying = true
-		m.songs, cmd = m.songs.Update(messages.SongEnded(true))
 	case messages.TryPlaySound:
 		if !m.SongPlaying {
 			m.StartSong()
@@ -244,38 +237,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				speaker.Unlock()
 			default:
 				m.player, cmd = m.player.Update(msg)
-
 			}
-
 		}
 	}
-	if m.state.Streamer == nil {
-		return m, cmd
-	}
-	if m.state.Streamer.Position() == m.state.Streamer.Len() {
-		//log.Fatal("event send")
-		return m, func() tea.Msg {
-			return messages.SongEnded(true)
-		}
+	if m.state.Streamer != nil && m.state.Streamer.Position() == m.state.Streamer.Len() {
+		m.songs.NextSong()
+		m.SongPlaying = false
+		m.StartSong()
 	}
 	return m, cmd
-}
-
-func NormalizeRight(s string, l int) string {
-	if len(s) < l {
-		return s + strings.Repeat(" ", l-len(s))
-	}
-	return s
-}
-
-func MaxRowLength(rows []string) int {
-	max := 0
-	for _, row := range rows {
-		if len(row) > max {
-			max = len(row)
-		}
-	}
-	return max
 }
 
 func (m model) View() string {

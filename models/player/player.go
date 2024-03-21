@@ -3,10 +3,9 @@ package player
 import (
 	"fmt"
 	"github.com/charmbracelet/bubbles/progress"
-	ChoosePlaylist "main/models/ChoosePlaylist"
+	"main/models/choose_playlist"
 	"main/models/messages"
 	"main/state"
-	"math"
 	"os"
 	"time"
 
@@ -26,7 +25,7 @@ const (
 
 type Model struct {
 	mode           Modes
-	choosePlaylist ChoosePlaylist.Model
+	choosePlaylist chooseplaylist.Model
 	focused        bool
 	done           chan bool
 	controlLocked  bool
@@ -36,11 +35,13 @@ type Model struct {
 
 var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240"))
+	BorderForeground(lipgloss.Color("240")).
+	Align(lipgloss.Center).
+	Width(70)
 
 func (m Model) Init() tea.Cmd { return nil }
 
-func DefaultPlaylist(state *state.State) Model {
+func New(state *state.State) Model {
 	progressBar := progress.New(progress.WithDefaultGradient())
 	progressBar.ShowPercentage = false
 	return Model{
@@ -54,22 +55,32 @@ func DefaultPlaylist(state *state.State) Model {
 func calcPersent(time int, length int) float64 {
 	return float64((time * 100) / length)
 }
-func formatDuration(pos time.Duration, length time.Duration) (string, string) {
-	posSec := pos.Round(time.Second).Seconds()
-	lengthSec := length.Round(time.Second).Seconds()
-	return fmt.Sprintf("%02v:%02v", math.Floor(posSec/60), int(posSec)%60), fmt.Sprintf("%02v:%02v", math.Floor(lengthSec/60), int(lengthSec)%60)
+
+func formatDuration(value int) string {
+	return fmt.Sprintf(
+		"%02v:%02v",
+		value/60,
+		value%60,
+	)
 }
+
+func PositionToSeconds(n int) int {
+	return int((time.Second * time.Duration(n) / time.Duration(44100)).Round(time.Second).Seconds())
+}
+
 func (m Model) View() string {
 	st := m.state.Streamer
-	s := m.progress.ViewAs(0) + "00:00 / 00:00"
+	s := "00:00 " + m.progress.ViewAs(0) + " 00:00"
 
 	if st != nil {
-		length := (time.Second * time.Duration(st.Len()) / time.Duration(44100)).Round(time.Second)
-		pos := (time.Second * time.Duration(st.Position()) / time.Duration(44100)).Round(time.Second)
-		curr, end := formatDuration(pos, length)
-		s = fmt.Sprintf("%v %v  %v", curr,
+		length := PositionToSeconds(st.Len())
+		pos := PositionToSeconds(st.Position())
+		s = fmt.Sprintf(
+			"%v %v %v",
+			formatDuration(pos),
 			m.progress.ViewAs(calcPersent(st.Position(), st.Len())/100),
-			end)
+			formatDuration(length),
+		)
 	}
 
 	switch m.mode {
@@ -79,10 +90,14 @@ func (m Model) View() string {
 		} else {
 			baseStyle.BorderForeground(lipgloss.Color("240"))
 		}
-		return baseStyle.Render(fmt.Sprintf("%s\n", lipgloss.JoinVertical(lipgloss.Center, m.state.CurrentSong, "\n", s)) + "\n")
+		return baseStyle.Render(
+			fmt.Sprintf("%s",
+				m.state.CurrentSong+"\n\n\n"+s,
+			))
 	}
 	return m.state.CurrentSong
 }
+
 func (m *Model) EndSong() {
 	speaker.Lock()
 	speaker.Close()
@@ -133,14 +148,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.EndSong()
 			go m.PlaySong()
 		default:
-		}
-	}
-	if m.state.Streamer == nil {
-		return m, cmd
-	}
-	if m.state.Streamer.Position() == m.state.Streamer.Len() {
-		return m, func() tea.Msg {
-			return messages.SongEnded(true)
 		}
 	}
 	return m, cmd
