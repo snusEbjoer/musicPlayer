@@ -37,7 +37,7 @@ var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240")).
 	Align(lipgloss.Center).
-	Width(70)
+	Width(86)
 
 func (m Model) Init() tea.Cmd { return nil }
 

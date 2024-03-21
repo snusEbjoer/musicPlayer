@@ -17,7 +17,6 @@ type Modes int
 
 const (
 	DEFAULT Modes = iota
-	SEARCH
 	CHOOSE
 )
 
@@ -52,12 +51,12 @@ func (m *Model) Focused() bool {
 	return m.table.Focused()
 }
 func New(state *state.State) Model {
-	columns := []table.Column{{Title: "Search song", Width: 50}}
+	columns := []table.Column{{Title: "Search song", Width: 40}}
 
 	ti := textinput.New()
 	ti.Placeholder = "Search song"
 	ti.CharLimit = 156
-	ti.Width = 20
+	ti.Width = 40
 	ti.Focus()
 	rows := []table.Row{{ti.View()}}
 	t := table.New(
@@ -100,7 +99,7 @@ func (m Model) getOption(title string) (youtube.SearchResult, error) {
 	return youtube.SearchResult{}, fmt.Errorf("option not found")
 }
 
-func (m Model) Update(msg tea.Msg, currentPlaylist string) (Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

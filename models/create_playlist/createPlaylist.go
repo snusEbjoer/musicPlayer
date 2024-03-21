@@ -27,7 +27,7 @@ var baseStyle = lipgloss.NewStyle().
 
 func (m Model) Init() tea.Cmd { return textinput.Blink }
 func New(state *state.State) Model {
-	columns := []table.Column{{Title: "Create playlist", Width: 30}}
+	columns := []table.Column{{Title: "Create playlist", Width: 40}}
 	ti := textinput.New()
 	ti.Placeholder = "Create playlist"
 	ti.CharLimit = 156

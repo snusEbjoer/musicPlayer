@@ -43,7 +43,7 @@ func (m *Model) Focused() bool {
 	return m.table.Focused()
 }
 func New(state *state.State) Model {
-	columns := []table.Column{{Title: "Playlists", Width: 30}}
+	columns := []table.Column{{Title: "Playlists", Width: 40}}
 	rows := []table.Row{{"Create playlist"}, {"Choose playlist"}}
 	t := table.New(
 		table.WithColumns(columns),

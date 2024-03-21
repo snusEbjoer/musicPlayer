@@ -19,7 +19,7 @@ type Model struct {
 
 var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240"))
+	BorderForeground(lipgloss.Color("240")).Width(86)
 
 func (m Model) Init() tea.Cmd { return nil }
 
@@ -35,7 +35,7 @@ func (m *Model) Focused() bool {
 }
 
 func New(state *state.State) (Model, error) {
-	columns := []table.Column{{Title: "Songs", Width: 50}, {Title: "", Width: 5}}
+	columns := []table.Column{{Title: "Songs", Width: 75}, {Title: "", Width: 5}}
 	rows, err := state.SongsWithDuration()
 	if err != nil {
 		return Model{}, err

@@ -33,7 +33,7 @@ var baseStyle = lipgloss.NewStyle().
 func (m Model) Init() tea.Cmd { return nil }
 
 func New(state *state.State) Model {
-	columns := []table.Column{{Title: "Choose playlist", Width: 30}}
+	columns := []table.Column{{Title: "Choose playlist", Width: 40}}
 	pls, err := playlists.ShowAllPlaylists()
 	if err != nil {
 		fmt.Println(err)

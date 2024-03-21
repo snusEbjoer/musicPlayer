@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"log"
 	"main/auth"
+	"main/models/Songs"
 	"main/models/messages"
 	"main/models/player"
 	"main/models/playlists_table"
 	"main/models/search_song"
-	"main/models/songs"
 	"main/state"
 	"main/youtube"
 	"os"
@@ -200,7 +200,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			default:
-				m.searchSong, cmd = m.searchSong.Update(msg, m.state.CurrentPlaylist)
+				m.searchSong, cmd = m.searchSong.Update(msg)
 
 			}
 		case SONGS:
@@ -249,9 +249,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	s := "\n deeez player \n\n"
+	s := "\ndeeez player\n" + fmt.Sprintf("Current playlist: %s\n", m.state.CurrentPlaylist)
 	s += fmt.Sprintf(
-		"%s\n%s\n%s\n%s %d %d %s",
+		"%s\n%s\n%s\n%s",
 		lipgloss.JoinHorizontal(
 			lipgloss.Left,
 			m.playlist.View(),
@@ -260,9 +260,6 @@ func (m model) View() string {
 		m.err,
 		m.songs.View(),
 		m.player.View(),
-		m.focusedWindowIdx,
-		m.mode,
-		m.state.CurrentPlaylist,
 	)
 	return s
 }
