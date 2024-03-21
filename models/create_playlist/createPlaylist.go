@@ -76,13 +76,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "esc":
-			if m.table.Focused() {
-				m.table.Blur()
-			} else {
-				m.table.Focus()
-			}
-		case "enter":
+		case m.state.Keys.Submit:
 			plName := m.textInput.Value()
 			if len(plName) == 0 {
 				return m, cmd

@@ -126,21 +126,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.table.SetRows(rows)
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "esc":
-			if m.table.Focused() {
-				m.table.Blur()
-			} else {
-				m.table.Focus()
-			}
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		case "delete":
+		case m.state.Keys.Delete:
 			os.Remove("./playlists/dir/" + m.state.CurrentPlaylist + "/" + m.table.SelectedRow()[0])
 			m.NextSong()
 			return m, func() tea.Msg {
 				return messages.SongsUpdated(true)
 			}
-		case "enter":
+		case m.state.Keys.Submit:
 			m.state.CurrentSong = m.table.SelectedRow()[0]
 		}
 	}

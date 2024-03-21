@@ -106,9 +106,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch m.mode {
 		case DEFAULT:
 			switch msg.String() {
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			case "enter":
+			case m.state.Keys.Submit:
 				m.state.CurrentPlaylist = m.table.SelectedRow()[0]
 				m.state.UpdateSongs()
 				return m, func() tea.Msg {

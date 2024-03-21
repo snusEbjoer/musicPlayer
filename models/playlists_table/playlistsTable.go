@@ -118,19 +118,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch m.mode {
 		case DEFAULT:
 			switch msg.String() {
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			case "enter":
+			case m.state.Keys.Submit:
 				m.mode = DefineMode(m.table.SelectedRow()[0])
 			default:
 				m.table, cmd = m.table.Update(msg)
 			}
 		case CHOOSE:
 			switch msg.String() {
-			case "esc":
+			case m.state.Keys.GoBack:
 				m.mode = DEFAULT
 				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
-			case "enter":
+			case m.state.Keys.Submit:
 				m.mode = DEFAULT
 				m.choosePlaylist, cmd = m.choosePlaylist.Update(msg)
 				return m, cmd
@@ -139,9 +137,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case CREATE:
 			switch msg.String() {
-			case "esc":
+			case m.state.Keys.GoBack:
 				m.mode = DEFAULT
-			case "enter":
+			case m.state.Keys.Submit:
 				m.createPlaylist, cmd = m.createPlaylist.Update(msg)
 				m.mode = DEFAULT
 				m.choosePlaylist.UpdatePlaylist()

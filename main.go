@@ -57,6 +57,7 @@ type model struct {
 	Scheduler   *time.Ticker
 	SongPlaying bool
 	err         string
+	toggleHelp  bool
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -82,6 +83,7 @@ func initialModel() model {
 		Scheduler:        time.NewTicker(debounceTime),
 		SongPlaying:      true,
 		err:              "",
+		toggleHelp:       false,
 	}
 }
 
@@ -170,26 +172,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "left":
+		case m.state.Keys.ToggleHelp:
+			m.toggleHelp = !m.toggleHelp
+		case m.state.Keys.MoveToLeft, m.state.Keys.VimMoveLeft:
 			if m.focusedWindowIdx > 0 {
 				m.focusedWindowIdx--
 				m.SwitchFocus()
 			}
-		case "right":
+		case m.state.Keys.MoveToRight, m.state.Keys.VimMoveRight:
 			if m.focusedWindowIdx < 3 {
 				m.focusedWindowIdx++
 				m.SwitchFocus()
 			}
-
-		case "q", "ctrl+c":
+		case m.state.Keys.Quit:
 			return m, tea.Quit
 		}
 		switch m.focusedWindowIdx {
 		case PLAYLISTS:
 			switch msg.String() {
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			case "enter":
+			case m.state.Keys.Submit:
 				m.playlist, cmd = m.playlist.Update(msg)
 			default:
 				m.playlist, cmd = m.playlist.Update(msg)
@@ -197,41 +198,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case SEARCHSONG:
 			switch msg.String() {
-			case "q", "ctrl+c":
-				return m, tea.Quit
 			default:
 				m.searchSong, cmd = m.searchSong.Update(msg)
 
 			}
 		case SONGS:
 			switch msg.String() {
-			case "enter":
+			case m.state.Keys.Submit:
 				m.songs, cmd = m.songs.Update(msg)
 			default:
 				m.songs, cmd = m.songs.Update(msg)
 			}
 		case PLAYER:
 			switch msg.String() {
-			case "alt+right":
+			case m.state.Keys.NextSong:
 				m.songs.NextSong()
 				m.SongPlaying = false
 				m.Scheduler.Reset(debounceTime)
-			case "alt+left":
+			case m.state.Keys.PrevSong:
 				m.songs.PrevSong()
 				m.SongPlaying = false
 				m.Scheduler.Reset(debounceTime)
-			case "enter":
+			case m.state.Keys.Submit:
 				m.StartSong()
 				m.SongPlaying = true
-			case " ":
+			case m.state.Keys.PauseSong:
 				speaker.Lock()
 				ctrl.Paused = !ctrl.Paused
 				speaker.Unlock()
-			case "down":
+			case m.state.Keys.VolumeDown:
 				speaker.Lock()
 				volume.Volume -= 0.1
 				speaker.Unlock()
-			case "up":
+			case m.state.Keys.VolumeUp:
 				speaker.Lock()
 				volume.Volume += 0.1
 				speaker.Unlock()
@@ -253,13 +252,32 @@ func (m *model) currPlaylistView() string {
 	}
 	return m.state.CurrentPlaylist
 }
-func (m model) View() string {
-	if m.state.CurrentPlaylist == "" {
+func hilight(str string) string {
 
+	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
+		Light: "#909090",
+		Dark:  "#626262",
+	})
+	return keyStyle.Render(str)
+}
+func (m *model) HelpView() string {
+
+	if !m.toggleHelp {
+		return fmt.Sprintf("%s toggle help   %s  quit", hilight("(?)"), hilight("(ctrl+c)"))
 	}
+	return fmt.Sprintf("%s move up %s move down %s move left %s move right %s quit %s submit",
+		hilight("(↑/k)"),
+		hilight("(↓/j)"),
+		hilight("(←/h)"),
+		hilight("(→/l)"),
+		hilight("(ctrl+c)"),
+		hilight("(enter)"),
+	)
+}
+func (m model) View() string {
 	s := "\ndeeez player\n" + fmt.Sprintf("Current playlist: %s\n", m.currPlaylistView())
 	s += fmt.Sprintf(
-		"%s\n%s\n%s\n%s",
+		"%s\n%s\n%s\n%s\n%s",
 		lipgloss.JoinHorizontal(
 			lipgloss.Left,
 			m.playlist.View(),
@@ -268,6 +286,7 @@ func (m model) View() string {
 		m.err,
 		m.songs.View(),
 		m.player.View(),
+		m.HelpView(),
 	)
 	return s
 }

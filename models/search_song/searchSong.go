@@ -107,12 +107,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case DEFAULT:
 			{
 				switch msg.String() {
-				case "esc":
+				case m.state.Keys.GoBack:
 					{
 						m.textInput.SetValue("")
 						m.table.SetRows(m.defaultRows)
 					}
-				case "enter":
+				case m.state.Keys.Submit:
 					{
 						m.query = m.textInput.Value()
 						if len(m.textInput.Value()) == 0 {
@@ -146,13 +146,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case CHOOSE:
 			{
 				switch msg.String() {
-				case "esc":
+				case m.state.Keys.GoBack:
 					{
 						m.textInput.SetValue("")
 						m.mode = DEFAULT
 						m.table.SetRows(m.defaultRows)
 					}
-				case "enter":
+				case m.state.Keys.Submit:
 					{
 						currOp := m.table.SelectedRow()[0]
 						option, err := m.getOption(currOp)

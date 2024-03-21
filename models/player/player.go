@@ -141,10 +141,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, cmd
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "esc":
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		case "enter":
+		case m.state.Keys.Submit:
 			m.EndSong()
 			go m.PlaySong()
 		default:

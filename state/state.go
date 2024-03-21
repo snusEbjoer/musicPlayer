@@ -2,7 +2,9 @@ package state
 
 import (
 	"fmt"
+	"github.com/BurntSushi/toml"
 	"github.com/faiface/beep"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -35,6 +37,22 @@ func getCurrentPlaylist() string {
 	}
 }
 
+type Keys struct {
+	Quit         string
+	Submit       string
+	NextSong     string
+	PrevSong     string
+	Delete       string
+	MoveToLeft   string
+	MoveToRight  string
+	PauseSong    string
+	VolumeUp     string
+	VolumeDown   string
+	GoBack       string
+	VimMoveLeft  string
+	VimMoveRight string
+	ToggleHelp   string
+}
 type State struct {
 	CurrentPlaylist string
 	CurrentSong     string
@@ -42,15 +60,22 @@ type State struct {
 	SongList        []string
 	mx              sync.Mutex
 	Streamer        beep.StreamSeekCloser
+	Keys            Keys
 }
 
 func New() *State {
+	var keys Keys
+	_, err := toml.DecodeFile("./config.toml", &keys)
+	if err != nil {
+		log.Fatal("config.toml not found or invalid.", err)
+	}
 	return &State{
 		CurrentPlaylist: getCurrentPlaylist(),
 		CurrentSong:     "",
 		CurrentWindow:   PLAYLISTS,
 		SongList:        []string{},
 		mx:              sync.Mutex{},
+		Keys:            keys,
 	}
 }
 
