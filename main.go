@@ -14,6 +14,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/faiface/beep"
@@ -63,9 +64,13 @@ type model struct {
 func (m model) Init() tea.Cmd { return nil }
 
 func initialModel() model {
+	err := ensureConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 	state := state.New()
 	playlistsTable := PlaylistsTable.New(state)
-	err := state.UpdateSongs()
+	err = state.UpdateSongs()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -276,7 +281,7 @@ func (m model) View() string {
 	return s
 }
 
-func EnsureToken() {
+func ensureToken() {
 	_, err := os.Stat("token.json")
 	if os.IsNotExist(err) {
 		a := auth.C{}
@@ -287,8 +292,70 @@ func EnsureToken() {
 	}
 }
 
+func checkConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	configDir := fmt.Sprintf("%s/.config/musicPlayer/", homeDir)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		err := os.MkdirAll(configDir, os.ModePerm)
+		if err != nil {
+			return "", err
+		}
+	}
+	return configDir, nil
+}
+
+func ensureConfigFile(configDir string) error {
+	configFile := fmt.Sprintf("%s/config.toml", configDir)
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		f, err := os.Create(configFile)
+		if err != nil {
+			return err
+		}
+		// Write as Config and serialize to toml
+		defaultCfg := state.Config{
+			Keymap: state.Keys{
+				Quit:         "ctrl+c",
+				Submit:       "enter",
+				MoveToLeft:   "left",
+				MoveToRight:  "right",
+				VimMoveLeft:  "h",
+				VimMoveRight: "l",
+				VolumeUp:     "up",
+				VolumeDown:   "down",
+				NextSong:     "ctrl+right",
+				PrevSong:     "ctrl+left",
+				Delete:       "d",
+				PauseSong:    " ",
+				GoBack:       "esc",
+				ToggleHelp:   "?",
+			},
+		}
+		err = toml.NewEncoder(f).Encode(defaultCfg)
+		if err != nil {
+			return err
+		}
+		f.Close()
+	}
+	return nil
+}
+
+func ensureConfig() error {
+	configDir, err := checkConfigDir()
+	if err != nil {
+		return err
+	}
+	err = ensureConfigFile(configDir)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
-	EnsureToken()
+	ensureToken()
 	go func() {
 		for _ = range m.Scheduler.C {
 			program.Send(messages.TryPlaySound(true))

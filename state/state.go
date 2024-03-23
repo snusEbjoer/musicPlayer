@@ -37,21 +37,25 @@ func getCurrentPlaylist() string {
 	}
 }
 
+type Config struct {
+	Keymap Keys `toml:"keymap"`
+}
+
 type Keys struct {
-	Quit         string
-	Submit       string
-	NextSong     string
-	PrevSong     string
-	Delete       string
-	MoveToLeft   string
-	MoveToRight  string
-	PauseSong    string
-	VolumeUp     string
-	VolumeDown   string
-	GoBack       string
-	VimMoveLeft  string
-	VimMoveRight string
-	ToggleHelp   string
+	Quit         string `toml:"quit"`
+	Submit       string `toml:"submit"`
+	NextSong     string `toml:"next_song"`
+	PrevSong     string `toml:"prev_song"`
+	Delete       string `toml:"delete"`
+	MoveToLeft   string `toml:"move_to_left"`
+	MoveToRight  string `toml:"move_to_right"`
+	PauseSong    string `toml:"pause_song"`
+	VolumeUp     string `toml:"volume_up"`
+	VolumeDown   string `toml:"volume_down"`
+	GoBack       string `toml:"go_back"`
+	VimMoveLeft  string `toml:"vim_move_left"`
+	VimMoveRight string `toml:"vim_move_right"`
+	ToggleHelp   string `toml:"toggle_help"`
 }
 type State struct {
 	CurrentPlaylist string
@@ -64,8 +68,12 @@ type State struct {
 }
 
 func New() *State {
-	var keys Keys
-	_, err := toml.DecodeFile("./config.toml", &keys)
+	var config Config
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = toml.DecodeFile(fmt.Sprintf("%s/.config/musicPlayer/config.toml", home), &config)
 	if err != nil {
 		log.Fatal("config.toml not found or invalid.", err)
 	}
@@ -75,7 +83,7 @@ func New() *State {
 		CurrentWindow:   PLAYLISTS,
 		SongList:        []string{},
 		mx:              sync.Mutex{},
-		Keys:            keys,
+		Keys:            config.Keymap,
 	}
 }
 
