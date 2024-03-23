@@ -87,11 +87,11 @@ func (c *C) Download(dlUrl string, title string, playlistPath string) error {
 	}
 	client := http.Client{}
 	resp, err := client.Do(req)
+	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}
 	f, _ := os.Create(fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, "sample"))
-	defer resp.Body.Close()
 	defer f.Close()
 	_, err = io.Copy(f, resp.Body)
 	if err != nil {
@@ -111,8 +111,6 @@ func (c *C) Download(dlUrl string, title string, playlistPath string) error {
 		fmt.Sprintf("./playlists/dir/%s/%s.mp4", playlistPath, title),
 		fmt.Sprintf("./playlists/dir/%s/%s.mp3", playlistPath, title),
 	)
-	//cmd.Stdout = os.Stdout
-	//cmd.Stderr = os.Stderr
 	cmd.Run()
 	transformCmd.Run()
 	defer os.Remove(fmt.Sprintf("./playlists/dir/%s/sample.mp4", playlistPath))
@@ -135,20 +133,12 @@ func (c *C) DownloadVideo(sr SearchResult) (DownloadUrl, error) {
 	}
 	v := url.Values{}
 	v.Add("key", context.Key)
-	//v.Add("html5", "1")
-	//v.Add("eurl", "https://youtube.googleapis.com/v/"+sr.VideoId)
-	//v.Add("c", "TVHTML5")
-	//v.Add("contentCheckOk", "true")
-	//v.Add("racyCheckOk", "true")
-	// v.Add("cver", "6.20180913")
-	//v.Add("videoId", sr.VideoId)
-
 	req, err := http.NewRequest("POST", "https://youtubei.googleapis.com/youtubei/v1/player?", bytes.NewBuffer(body))
 	if err != nil {
 		return DownloadUrl{}, err
 	}
 	req.URL.RawQuery = v.Encode()
-	resp, err := client.RequestWithAuth(req)
+	resp, err := http.DefaultClient.Do(req)
 
 	if err != nil {
 		return DownloadUrl{}, err
@@ -171,7 +161,17 @@ func (c *C) DownloadVideo(sr SearchResult) (DownloadUrl, error) {
 	return DownloadUrl{DownloadUrl: resultsList, Title: sr.Title}, nil
 }
 
-// Returns result list
+func prepareSearchRequest(req *http.Request, query string, clientKey string) {
+
+	v := url.Values{}
+	v.Add("key", clientKey)
+	v.Add("contentCheckOk", "true")
+	v.Add("racyCheckOk", "true")
+	v.Add("query", query)
+	req.URL.RawQuery = v.Encode()
+	req.Header.Add("Content-Type", "application/json")
+}
+
 func (c *C) Search(query string) ([]SearchResult, error) {
 	client := auth.C{}
 	ctx := client.ClientContext()
@@ -186,20 +186,8 @@ func (c *C) Search(query string) ([]SearchResult, error) {
 	if err != nil {
 		return nil, nil
 	}
-
-	// TODO: MB move to separate function
-	// Something like `prepareSearchRequest`
-	v := url.Values{}
-	v.Add("key", ctx.Key)
-	v.Add("contentCheckOk", "true")
-	v.Add("racyCheckOk", "true")
-	v.Add("query", query)
-	req.URL.RawQuery = v.Encode()
-	req.Header.Add("Content-Type", "application/json")
-	if err != nil {
-		return nil, err
-	}
-	resp, err := client.RequestWithAuth(req)
+	prepareSearchRequest(req, query, ctx.Key)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

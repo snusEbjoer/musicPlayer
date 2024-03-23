@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"log"
 	"main/auth"
-	"main/models/Songs"
 	"main/models/messages"
 	"main/models/player"
 	"main/models/playlists_table"
 	"main/models/search_song"
+	"main/models/songs"
 	"main/state"
 	"main/youtube"
 	"os"
@@ -189,26 +189,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch m.focusedWindowIdx {
 		case PLAYLISTS:
-			switch msg.String() {
-			case m.state.Keys.Submit:
-				m.playlist, cmd = m.playlist.Update(msg)
-			default:
-				m.playlist, cmd = m.playlist.Update(msg)
-				return m, cmd
-			}
+			m.playlist, cmd = m.playlist.Update(msg)
 		case SEARCHSONG:
-			switch msg.String() {
-			default:
-				m.searchSong, cmd = m.searchSong.Update(msg)
-
-			}
+			m.searchSong, cmd = m.searchSong.Update(msg)
 		case SONGS:
-			switch msg.String() {
-			case m.state.Keys.Submit:
-				m.songs, cmd = m.songs.Update(msg)
-			default:
-				m.songs, cmd = m.songs.Update(msg)
-			}
+			m.songs, cmd = m.songs.Update(msg)
 		case PLAYER:
 			switch msg.String() {
 			case m.state.Keys.NextSong:
